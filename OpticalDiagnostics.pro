@@ -27,16 +27,21 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     plot/qcustomplot.cpp \
     tracermanager.cpp \
-    showpicform.cpp
+    showpicform.cpp \
+    calibrationform.cpp \
+    clickablelabel.cpp
 
 HEADERS  += mainwindow.h \
     plot/qcustomplot.h \
     tracermanager.h \
-    showpicform.h
+    showpicform.h \
+    calibrationform.h \
+    clickablelabel.h
 
 FORMS    += mainwindow.ui \
-    showpicform.ui
-
+    showpicform.ui \
+    calibrationform.ui
+RC_FILE = icon.rc
 
 INCLUDEPATH+=C:/Librarys/OpenCV2/include
 INCLUDEPATH+=C:/Librarys/OpenCV2/include/opencv

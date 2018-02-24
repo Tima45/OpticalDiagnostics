@@ -6,8 +6,14 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    loadSettings();
     initPlot();
 
+    frameGrapTimer = new QTimer(this);
+    frameGrapTimer->setInterval(50);
+    connect(frameGrapTimer,SIGNAL(timeout()),this,SLOT(handleFrame()));
+
+    /*
     QVector<double> xProfile;
     QVector<double> yProfile;
     for(int i = 0; i < 256; i++){
@@ -16,21 +22,91 @@ MainWindow::MainWindow(QWidget *parent) :
     }
 
 
-    updateProfiles(xProfile,yProfile,(60.0/256.0),-30,(60.0/256.0),-30);
+    updateProfiles(xProfile,yProfile);*/
 }
 
 MainWindow::~MainWindow()
 {
+    saveSettings();
     delete ui;
+}
+
+void MainWindow::loadSettings()
+{
+    if(QFileInfo(settingsName).isFile()){
+        QSettings settings(settingsName,QSettings::IniFormat);
+        xScale = settings.value(xScaleSettingsName).toDouble();
+        yScale = settings.value(yScaleSettingsName).toDouble();
+        xPositionForYAxis = settings.value(xPositionForYAxisSettingsName).toInt();
+        yPositionForXAxis = settings.value(yPositionForXAxisSettingsName).toInt();
+        xStartPosition = settings.value(xStartPositionSettingsName).toInt();
+        yStartPosition = settings.value(yStartPositionSettingsName).toInt();
+        xStopPosition = settings.value(xStopPositionSettingsName).toInt();
+        yStopPosition = settings.value(yStopPositionSettingsName).toInt();
+        xDelta = settings.value(xDeltaSettingsName).toDouble();
+        yDelta = settings.value(yDeltaSettingsName).toDouble();
+
+        xProfile.resize(xStopPosition-xStartPosition);
+        yProfile.resize(yStopPosition-yStartPosition);
+        for(int i = 0; i < xProfile.count(); i++){
+            xLengthKeys.append(xDelta + xScale*i);
+        }
+        for(int i = 0; i < yProfile.count(); i++){
+            yLengthKeys.append(yDelta + yScale*i);
+        }
+
+        ui->xCameraIpEdit->setText(settings.value(xCameraIpSettingsName).toString());
+        ui->yCameraIpEdit->setText(settings.value(yCameraIpSettingsName).toString());
+
+        ui->xCameraUsernameEdit->setText(settings.value(xUserNameSettingsName).toString());
+        ui->yCameraUsernameEdit->setText(settings.value(yUserNameSettingsName).toString());
+    }else{
+        //QMessageBox::warning(this,"Внимание","Файл настрок не найден. Значения дефолтные.");
+        saveSettings();
+    }
+}
+
+void MainWindow::saveSettings()
+{
+    QSettings settings(settingsName,QSettings::IniFormat);
+    settings.setValue(xScaleSettingsName,xScale);
+    settings.setValue(yScaleSettingsName,yScale);
+    settings.setValue(xPositionForYAxisSettingsName,xPositionForYAxis);
+    settings.setValue(yPositionForXAxisSettingsName,yPositionForXAxis);
+    settings.setValue(xStartPositionSettingsName,xStartPosition);
+    settings.setValue(yStartPositionSettingsName,yStartPosition);
+    settings.setValue(xStopPositionSettingsName,xStopPosition);
+    settings.setValue(yStopPositionSettingsName,yStopPosition);
+    settings.setValue(xDeltaSettingsName,xDelta);
+    settings.setValue(yDeltaSettingsName,yDelta);
+    settings.setValue(xCameraIpSettingsName,ui->xCameraIpEdit->text());
+    settings.setValue(yCameraIpSettingsName,ui->yCameraIpEdit->text());
+    settings.setValue(xUserNameSettingsName,ui->xCameraUsernameEdit->text());
+    settings.setValue(yUserNameSettingsName,ui->yCameraUsernameEdit->text());
+}
+
+void MainWindow::showPic(Mat &pic)
+{
+    ShowPicForm *f = new ShowPicForm(pic);
+    f->setAttribute(Qt::WA_DeleteOnClose);
+    f->show();
+}
+
+void MainWindow::calibrate(QString type, Mat &pic)
+{
+    CalibrationForm *f = new CalibrationForm(type,pic);
+    connect(f,SIGNAL(saveCalibration(QString,double,double,int,int,int)),this,SLOT(saveCalibration(QString,double,double,int,int,int)));
+    f->setAttribute(Qt::WA_DeleteOnClose);
+    f->show();
 }
 
 void MainWindow::initPlot()
 {
-
+/*
     ui->plot->setInteraction(QCP::iRangeDrag, true);
     ui->plot->setInteraction(QCP::iRangeZoom, true);
     ui->plot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
-    ui->plot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
+    ui->plot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);*/
 
     ui->plot->addLayer("low");
     ui->plot->addLayer("mid");
@@ -61,9 +137,15 @@ void MainWindow::initPlot()
 
     xyProfileMap = new QCPColorMap(ui->plot->xAxis,ui->plot->yAxis);
     xyProfileMap->setLayer("low");
-    xyProfileMap->data()->setRange(QCPRange(-30,-30),QCPRange(-30,-30));
-    ui->plot->xAxis->setRange(-30,30);
-    ui->plot->yAxis->setRange(-30,30);
+
+
+    ui->plot->xAxis->setRange(QCPRange(xDelta,(xStopPosition-xStartPosition)*xScale+xDelta));
+    ui->plot->yAxis->setRange(QCPRange(yDelta,(yStopPosition-yStartPosition)*yScale+yDelta));
+
+    ui->plot->xAxis2->setRange(QCPRange(0,1));
+    ui->plot->yAxis2->setRange(QCPRange(0,1));
+
+    xyProfileMap->data()->setRange(QCPRange(xDelta,(xStopPosition-xStartPosition)*xScale+xDelta),QCPRange(yDelta,(yStopPosition-yStartPosition)*yScale+yDelta));
 
 
     colorScale = new QCPColorScale(ui->plot);
@@ -89,9 +171,8 @@ void MainWindow::initPlot()
     heightLine->setPen(p);
     heightLine->setLayer("top");
 
-
-
     ui->plot->moveLayer(ui->plot->layer("grid"),ui->plot->layer("top"));
+    ui->plot->replot();
 }
 
 void MainWindow::setEnabledAll(bool value)
@@ -108,17 +189,8 @@ void MainWindow::setEnabledAll(bool value)
     ui->yCameraCalibrationButton->setEnabled(value);
 }
 
-void MainWindow::updateProfiles(const QVector<double> &xProfile, const QVector<double> &yProfile, double xScale,double xDelta, double yScale,double yDelta)
+void MainWindow::updateProfiles(const QVector<double> &xProfile, const QVector<double> &yProfile)
 {
-    QVector<double> xLengthKeys;
-    QVector<double> yLengthKeys;
-
-    for(int i = 0; i < xProfile.count(); i++){
-        xLengthKeys.append(xDelta + xScale*i);
-    }
-    for(int i = 0; i < yProfile.count(); i++){
-        yLengthKeys.append(yDelta + yScale*i);
-    }
     //-------------------------------------------------
     WaveletSpectrum *dwt = new WaveletSpectrum(xProfile,WaveletSpectrum::BSPLINE_309);
     dwt->levelFilter(dwt->getLevels()-1,0);
@@ -186,8 +258,14 @@ void MainWindow::updateProfiles(const QVector<double> &xProfile, const QVector<d
 
             heightLine->start->setCoords(xLengthKeys.at(xMaxId),yLengthKeys.at(yHeightKeys[0]));
             heightLine->end->setCoords(xLengthKeys.at(xMaxId),yLengthKeys.at(yHeightKeys[1]));
+
+            ui->widthLabel->setText(QString::number(xLengthKeys.at(xWidthKeys[1])-xLengthKeys.at(xWidthKeys[0])));
+            ui->heightLabel->setText(QString::number(yLengthKeys.at(yHeightKeys[1])-yLengthKeys.at(yHeightKeys[0])));
         }
     }
+
+    ui->xMaxLabel->setText(QString::number(xLengthKeys.at(xMaxId)));
+    ui->yMaxLabel->setText(QString::number(yLengthKeys.at(yMaxId)));
 
     //--------------------------------------------
     xProfileGraph->clearData();
@@ -221,74 +299,190 @@ void MainWindow::updateProfiles(const QVector<double> &xProfile, const QVector<d
     ui->plot->replot();
 }
 
+void MainWindow::saveCalibration(QString type, double scale, double delta, int start, int stop, int otherPixel)
+{
+    if(type == "X"){
+        xScale = scale;
+        xDelta = delta;
+        xStartPosition = start;
+        xStopPosition = stop;
+        yPositionForXAxis = otherPixel;
+        xProfile.resize(xStopPosition-xStartPosition);
+        for(int i = 0; i < xProfile.count(); i++){
+            xLengthKeys.append(xDelta + xScale*i);
+        }
+        ui->plot->xAxis->setRange(QCPRange(xDelta,(xStopPosition-xStartPosition)*xScale+xDelta));
+        ui->plot->replot();
+        saveSettings();
+    }
+    if(type == "Y"){
+        yScale = scale;
+        yDelta = delta;
+        yStartPosition = start;
+        yStopPosition = stop;
+        xPositionForYAxis = otherPixel;
+        yProfile.resize(yStopPosition-yStartPosition);
+        for(int i = 0; i < yProfile.count(); i++){
+            yLengthKeys.append(yDelta + yScale*i);
+        }
+        ui->plot->yAxis->setRange(QCPRange(yDelta,(yStopPosition-yStartPosition)*yScale+yDelta));
+        ui->plot->replot();
+        saveSettings();
+    }
+}
+
 void MainWindow::on_startStopButton_clicked()
 {
+    if(xStartPosition == 0 || xStopPosition == 0 || yStartPosition == 0 || yStartPosition == 0 || xPositionForYAxis == 0 || yPositionForXAxis == 0){
+        QMessageBox::critical(this,"Ошибка","Не выполнена калибровка.");
+        return ;
+    }
     if(!isRunning){
         isRunning = true;
         ui->startStopButton->setText("Стоп");
         setEnabledAll(false);
-
-
+        frameGrapTimer->start();
     }else{
         isRunning = false;
         ui->startStopButton->setText("Старт");
         setEnabledAll(true);
+        frameGrapTimer->stop();
     }
 }
 
 void MainWindow::on_xCameraTestButton_clicked()
 {
-    /*
-    QString s = QString("rtsp://%1:%2@%3:554").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text());
-    qDebug() << s;
-
-    if(!xVideo.isOpened()){
-        xVideo.open(s.toStdString());
-        xVideo >> ximage;
-        if(ximage.data){
-            //imshow("testX",ximage);
-            ShowPicForm *f = new ShowPicForm(ximage);
-            f->setAttribute(Qt::WA_DeleteOnClose);
-            f->show();
+    if(false){
+        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text());
+        if(!xVideo.isOpened()){
+            xVideo.open(s.toStdString());
+            xVideo >> ximage;
+            if(ximage.data){
+                showPic(ximage);
+            }else{
+                QMessageBox::critical(this,":(",":(");
+            }
         }else{
-            QMessageBox::critical(this,":(",":(");
+            xVideo >> ximage;
+            if(ximage.data){
+                showPic(ximage);
+            }else{
+                QMessageBox::critical(this,":(",":(");
+            }
         }
     }else{
-        xVideo >> ximage;
-        if(ximage.data){
-            imshow("testX",ximage);
-        }else{
-            QMessageBox::critical(this,":(",":(");
-        }
+        Mat pic = imread("D:/1222.png",IMREAD_ANYCOLOR);
+        showPic(pic);
     }
-*/
-
-    Mat pic = imread("D:/1222.png",IMREAD_ANYCOLOR);
-    ShowPicForm *f = new ShowPicForm(pic);
-    f->setAttribute(Qt::WA_DeleteOnClose);
-    f->show();
-
 }
 
 void MainWindow::on_yCameraTestButton_clicked()
 {
 
-    QString s = QString("rtsp://%1:%2@%3:554").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text());
-    qDebug() << s;
-    if(!yVideo.isOpened()){
-        yVideo.open(s.toStdString());
-        yVideo >> yimage;
-        if(yimage.data){
-            imshow("testY",yimage);
+    if(false){
+        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text());
+        if(!yVideo.isOpened()){
+            yVideo.open(s.toStdString());
+            yVideo >> yimage;
+            if(yimage.data){
+                showPic(yimage);
+            }else{
+                QMessageBox::critical(this,":(",":(");
+            }
         }else{
-            QMessageBox::critical(this,":(",":(");
+            yVideo >> yimage;
+            if(yimage.data){
+                showPic(yimage);
+            }else{
+                QMessageBox::critical(this,":(",":(");
+            }
         }
     }else{
-        yVideo >> yimage;
-        if(yimage.data){
-            imshow("testY",yimage);
-        }else{
-            QMessageBox::critical(this,":(",":(");
-        }
+        Mat pic = imread("D:/1222.png",IMREAD_ANYCOLOR);
+        showPic(pic);
     }
+}
+
+void MainWindow::on_xCameraCalibrationButton_clicked()
+{
+    if(false){
+        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text());
+        if(!xVideo.isOpened()){
+            xVideo.open(s.toStdString());
+            xVideo >> ximage;
+            if(ximage.data){
+                calibrate("X",ximage);
+            }else{
+                QMessageBox::critical(this,":(",":(");
+            }
+        }else{
+            xVideo >> ximage;
+            if(ximage.data){
+                calibrate("X",ximage);
+            }else{
+                QMessageBox::critical(this,":(",":(");
+            }
+        }
+    }else{
+        Mat pic = imread("D:/1222.png",IMREAD_ANYCOLOR);
+        calibrate("X",pic);
+    }
+}
+
+void MainWindow::on_yCameraCalibrationButton_clicked()
+{
+    if(false){
+        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text());
+
+        if(!yVideo.isOpened()){
+            yVideo.open(s.toStdString());
+            yVideo >> yimage;
+            if(yimage.data){
+                calibrate("Y",yimage);
+            }else{
+                QMessageBox::critical(this,":(",":(");
+            }
+        }else{
+            yVideo >> yimage;
+            if(yimage.data){
+                calibrate("Y",yimage);
+            }else{
+                QMessageBox::critical(this,":(",":(");
+            }
+        }
+    }else{
+        Mat pic = imread("D:/1222.png",IMREAD_ANYCOLOR);
+        calibrate("Y",pic);
+    }
+}
+
+void MainWindow::handleFrame()
+{
+    if(!xVideo.isOpened()){
+        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text());
+        xVideo.open(s.toStdString());
+    }
+    if(!yVideo.isOpened()){
+        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text());
+        yVideo.open(s.toStdString());
+    }
+    xVideo >> ximage;
+    yVideo >> yimage;
+
+    if(ximage.data && yimage.data){
+        for(int x = xStartPosition; x < xStopPosition; x++) {
+            uchar b = ximage.at<Vec3b>(yPositionForXAxis,x)[0];
+            xProfile[x-xStartPosition] = (double)b/255.0;
+        }
+
+        for(int y = yStartPosition; y < yStopPosition; y++) {
+            uchar b = yimage.at<Vec3b>(y,xPositionForYAxis)[0];
+            yProfile[y-yStartPosition] = (double)b/255.0;
+        }
+        updateProfiles(xProfile,yProfile);
+    }else{
+        on_startStopButton_clicked();
+        QMessageBox::critical(this,"Ошибка","Нет связи с камерами.");
+    }
+
 }
