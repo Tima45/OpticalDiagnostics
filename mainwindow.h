@@ -7,9 +7,11 @@
 #include <QTimer>
 #include <waveletspectrum.h>
 #include <QMessageBox>
+#include <QThread>
 #include "plot/qcustomplot.h"
 #include "showpicform.h"
 #include "calibrationform.h"
+#include "capturemanager.h"
 #include <cv.hpp>
 
 using namespace cv;
@@ -61,10 +63,16 @@ public:
     //===========================================================
     void showPic(Mat &pic);
     void calibrate(QString type,Mat &pic);
-    VideoCapture xVideo;
-    VideoCapture yVideo;
+
+    CaptureManager *xCapure;
+    CaptureManager *yCapure;
+
+    QThread *xThread;
+    QThread *yThread;
+
     Mat ximage;
     Mat yimage;
+
     //===========================================================
     void initPlot();
     QCPGraph *xProfileGraph;
@@ -77,23 +85,32 @@ public:
     QCPItemLine *widthLine;
     QCPItemLine *heightLine;
     //===========================================================
-    void setEnabledAll(bool value);
+    void setEnabledXCamer(bool value);
+    void setEnabledYCamer(bool value);
 
-    void updateProfiles(const QVector<double> &xProfile, const QVector<double> &yProfile);
+    void updateProfiles(QVector<double> &xProfile, QVector<double> &yProfile);
 
+    bool xReady = false;
+    bool yReady = false;
+
+signals:
+    void openXCapture();
+    void openYCapture();
 private slots:
+    void handleLostConnection(QString name);
+    void handleOpenResult(QString name, bool status);
     void saveCalibration(QString type,double scale, double delta,int start, int stop, int otherPixel);
     void on_startStopButton_clicked();
-
-    void on_xCameraTestButton_clicked();
-
-    void on_yCameraTestButton_clicked();
 
     void on_xCameraCalibrationButton_clicked();
 
     void on_yCameraCalibrationButton_clicked();
 
-    void handleFrame();
+    void handleFrame(QString name, Mat newPic);
+
+    void on_xCameraConnectButton_clicked();
+
+    void on_yCameraConnectButton_clicked();
 
 private:
     Ui::MainWindow *ui;

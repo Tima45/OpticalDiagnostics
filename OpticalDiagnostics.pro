@@ -29,14 +29,18 @@ SOURCES += main.cpp\
     tracermanager.cpp \
     showpicform.cpp \
     calibrationform.cpp \
-    clickablelabel.cpp
+    clickablelabel.cpp \
+    indicator.cpp \
+    capturemanager.cpp
 
 HEADERS  += mainwindow.h \
     plot/qcustomplot.h \
     tracermanager.h \
     showpicform.h \
     calibrationform.h \
-    clickablelabel.h
+    clickablelabel.h \
+    indicator.h \
+    capturemanager.h
 
 FORMS    += mainwindow.ui \
     showpicform.ui \
@@ -72,3 +76,10 @@ LIBS+=C:/Librarys/OpenCV2/dll/opencv_ffmpeg320.dll
 INCLUDEPATH += "C:/Librarys/WaveletSpectrum/include"
 LIBS += "C:/Librarys/WaveletSpectrum/lib/libWaveletSpectrum.a"
 LIBS += "C:/Librarys/gsl/lib/libgsl.a"
+
+RESOURCES += \
+    indicatorpicturesresource.qrc
+
+DISTFILES += \
+    indicatorOff.png \
+    indicatorOn.png

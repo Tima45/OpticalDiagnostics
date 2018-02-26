@@ -9,25 +9,52 @@ MainWindow::MainWindow(QWidget *parent) :
     loadSettings();
     initPlot();
 
+    xCapure = new CaptureManager(30);
+    xCapure->name = "X";
+    yCapure = new CaptureManager(30);
+    yCapure->name = "Y";
+
+    xThread = new QThread(this);
+    yThread = new QThread(this);
+
+    xCapure->moveToThread(xThread);
+    xThread->start();
+
+    yCapure->moveToThread(yThread);
+    yThread->start();
+
     frameGrapTimer = new QTimer(this);
-    frameGrapTimer->setInterval(50);
-    connect(frameGrapTimer,SIGNAL(timeout()),this,SLOT(handleFrame()));
+    frameGrapTimer->setInterval(30);
+    connect(frameGrapTimer,SIGNAL(timeout()),xCapure,SLOT(getFrame()),Qt::QueuedConnection);
+    connect(frameGrapTimer,SIGNAL(timeout()),yCapure,SLOT(getFrame()),Qt::QueuedConnection);
 
-    /*
-    QVector<double> xProfile;
-    QVector<double> yProfile;
-    for(int i = 0; i < 256; i++){
-        xProfile.append(0.4*exp(-powf(i-158,2)/100.0));
-        yProfile.append(0.4*exp(-powf(i-150,2)/100.0));
-    }
+    qRegisterMetaType<Mat>("Mat");
 
 
-    updateProfiles(xProfile,yProfile);*/
+    connect(this,SIGNAL(openXCapture()),xCapure,SLOT(open()));
+    connect(this,SIGNAL(openYCapture()),yCapure,SLOT(open()));
+    connect(xCapure,SIGNAL(openResult(QString,bool)),this,SLOT(handleOpenResult(QString,bool)));
+    connect(yCapure,SIGNAL(openResult(QString,bool)),this,SLOT(handleOpenResult(QString,bool)));
+
+    connect(xCapure,SIGNAL(newFrame(QString,Mat)),this,SLOT(handleFrame(QString,Mat)),Qt::QueuedConnection);
+    connect(xCapure,SIGNAL(losedConnection(QString)),this,SLOT(handleLostConnection(QString)),Qt::QueuedConnection);
+    connect(yCapure,SIGNAL(newFrame(QString,Mat)),this,SLOT(handleFrame(QString,Mat)),Qt::QueuedConnection);
+    connect(yCapure,SIGNAL(losedConnection(QString)),this,SLOT(handleLostConnection(QString)),Qt::QueuedConnection);
+
+
 }
 
 MainWindow::~MainWindow()
 {
     saveSettings();
+
+    xThread->terminate();
+    yThread->terminate();
+
+    xCapure->deleteLater();
+    yCapure->deleteLater();
+
+
     delete ui;
 }
 
@@ -46,13 +73,13 @@ void MainWindow::loadSettings()
         xDelta = settings.value(xDeltaSettingsName).toDouble();
         yDelta = settings.value(yDeltaSettingsName).toDouble();
 
-        xProfile.resize(xStopPosition-xStartPosition);
-        yProfile.resize(yStopPosition-yStartPosition);
+        xProfile.resize(abs(xStopPosition-xStartPosition));
+        yProfile.resize(abs(yStopPosition-yStartPosition));
         for(int i = 0; i < xProfile.count(); i++){
-            xLengthKeys.append(xDelta + xScale*i);
+            xLengthKeys.append(xDelta + fabs(xScale)*i);
         }
         for(int i = 0; i < yProfile.count(); i++){
-            yLengthKeys.append(yDelta + yScale*i);
+            yLengthKeys.append(yDelta + fabs(yScale)*i);
         }
 
         ui->xCameraIpEdit->setText(settings.value(xCameraIpSettingsName).toString());
@@ -102,11 +129,11 @@ void MainWindow::calibrate(QString type, Mat &pic)
 
 void MainWindow::initPlot()
 {
-/*
+
     ui->plot->setInteraction(QCP::iRangeDrag, true);
     ui->plot->setInteraction(QCP::iRangeZoom, true);
     ui->plot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
-    ui->plot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);*/
+    ui->plot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
 
     ui->plot->addLayer("low");
     ui->plot->addLayer("mid");
@@ -132,8 +159,10 @@ void MainWindow::initPlot()
     ySmoothProfileGraph = ui->plot->addGraph(ui->plot->yAxis,ui->plot->xAxis2);
     xSmoothProfileGraph->setLayer("mid");
     ySmoothProfileGraph->setLayer("mid");
-    xSmoothProfileGraph->pen().setWidth(2);
-    ySmoothProfileGraph->pen().setWidth(2);
+    QPen pp(QColor(Qt::blue));
+    pp.setWidth(2);
+    xSmoothProfileGraph->setPen(pp);
+    ySmoothProfileGraph->setPen(pp);
 
     xyProfileMap = new QCPColorMap(ui->plot->xAxis,ui->plot->yAxis);
     xyProfileMap->setLayer("low");
@@ -142,10 +171,10 @@ void MainWindow::initPlot()
     ui->plot->xAxis->setRange(QCPRange(xDelta,(xStopPosition-xStartPosition)*xScale+xDelta));
     ui->plot->yAxis->setRange(QCPRange(yDelta,(yStopPosition-yStartPosition)*yScale+yDelta));
 
-    ui->plot->xAxis2->setRange(QCPRange(0,1));
-    ui->plot->yAxis2->setRange(QCPRange(0,1));
+    ui->plot->xAxis2->setRange(QCPRange(0,4));
+    ui->plot->yAxis2->setRange(QCPRange(0,4));
 
-    xyProfileMap->data()->setRange(QCPRange(xDelta,(xStopPosition-xStartPosition)*xScale+xDelta),QCPRange(yDelta,(yStopPosition-yStartPosition)*yScale+yDelta));
+    xyProfileMap->data()->setRange(QCPRange(xDelta,abs(xStopPosition-xStartPosition)*xScale+xDelta),QCPRange(yDelta,abs(yStopPosition-yStartPosition)*yScale+yDelta));
 
 
     colorScale = new QCPColorScale(ui->plot);
@@ -175,32 +204,56 @@ void MainWindow::initPlot()
     ui->plot->replot();
 }
 
-void MainWindow::setEnabledAll(bool value)
+
+void MainWindow::setEnabledXCamer(bool value)
 {
     ui->xCameraIpEdit->setEnabled(value);
     ui->xCameraUsernameEdit->setEnabled(value);
     ui->xCameraPassword->setEnabled(value);
-    ui->xCameraTestButton->setEnabled(value);
-    ui->xCameraCalibrationButton->setEnabled(value);
+    ui->xCameraConnectButton->setEnabled(value);
+    ui->xCameraCalibrationButton->setEnabled(!value);
+    ui->xIndicator->setState(!value);
+}
+
+void MainWindow::setEnabledYCamer(bool value)
+{
     ui->yCameraIpEdit->setEnabled(value);
     ui->yCameraUsernameEdit->setEnabled(value);
     ui->yCameraPassword->setEnabled(value);
-    ui->yCameraTestButton->setEnabled(value);
-    ui->yCameraCalibrationButton->setEnabled(value);
+    ui->yCameraConnectButton->setEnabled(value);
+    ui->yCameraCalibrationButton->setEnabled(!value);
+    ui->yIndicator->setState(!value);
 }
 
-void MainWindow::updateProfiles(const QVector<double> &xProfile, const QVector<double> &yProfile)
+void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProfile)
 {
+    if(xScale < 0){
+        for(int i = 0; i < xProfile.count()/2; i++){
+            double tmp = xProfile[i];
+            xProfile[i] = xProfile[(xProfile.count()-1)-i];
+            xProfile[(xProfile.count()-1)-i] = tmp;
+        }
+    }
+    if(yScale < 0){
+        for(int i = 0; i < yProfile.count()/2; i++){
+            double tmp = yProfile[i];
+            yProfile[i] = yProfile[(yProfile.count()-1)-i];
+            yProfile[(yProfile.count()-1)-i] = tmp;
+        }
+    }
+
     //-------------------------------------------------
     WaveletSpectrum *dwt = new WaveletSpectrum(xProfile,WaveletSpectrum::BSPLINE_309);
-    dwt->levelFilter(dwt->getLevels()-1,0);
-    dwt->levelFilter(dwt->getLevels()-2,0);
+    dwt->highFilter(0);
+    //dwt->levelFilter(dwt->getLevels()-1,0);
+    //dwt->levelFilter(dwt->getLevels()-2,0);
     QVector<double> xSmoothProfile;
     xSmoothProfile = dwt->toData();
     dwt->deleteLater();
     dwt = new WaveletSpectrum(yProfile,WaveletSpectrum::BSPLINE_309);
-    dwt->levelFilter(dwt->getLevels()-1,0);
-    dwt->levelFilter(dwt->getLevels()-2,0);
+    dwt->highFilter(0);
+    //dwt->levelFilter(dwt->getLevels()-1,0);
+    //dwt->levelFilter(dwt->getLevels()-2,0);
     QVector<double> ySmoothProfile;
     ySmoothProfile = dwt->toData();
     dwt->deleteLater();
@@ -276,27 +329,58 @@ void MainWindow::updateProfiles(const QVector<double> &xProfile, const QVector<d
     xSmoothProfileGraph->clearData();
     xSmoothProfileGraph->setData(xLengthKeys,xSmoothProfile);
     ySmoothProfileGraph->clearData();
-    ySmoothProfileGraph->setData(xLengthKeys,xSmoothProfile);
+    ySmoothProfileGraph->setData(yLengthKeys,ySmoothProfile);
     //--------------------------------------------
 
     xyProfileMap->data()->clear();
-    int minCount = xProfile.count() < yProfile.count() ? xProfile.count() : yProfile.count();
-    xyProfileMap->data()->setSize(minCount,minCount);
-    xyProfileMap->data()->setRange(QCPRange(xDelta,xProfile.count()*xScale+xDelta),QCPRange(yDelta,yProfile.count()*yScale+yDelta));
-    for(int y = 0; y < minCount; y++){
-        for(int x = 0; x < minCount; x++){
+    xyProfileMap->data()->setSize(xProfile.count(),yProfile.count());
+    xyProfileMap->data()->setRange(QCPRange(xDelta,xProfile.count()*fabs(xScale)+xDelta),QCPRange(yDelta,yProfile.count()*fabs(yScale)+yDelta));
+    for(int y = 0; y < ySmoothProfile.count(); y++){
+        for(int x = 0; x < xSmoothProfile.count(); x++){
             xyProfileMap->data()->setCell(x,y,xSmoothProfile[x]*ySmoothProfile[y]);
         }
     }
 
-    //xyProfileMap->rescaleDataRange();
-    ui->plot->xAxis->setRange(QCPRange(xDelta,xProfile.count()*xScale+xDelta));
-    ui->plot->yAxis->setRange(QCPRange(yDelta,yProfile.count()*yScale+yDelta));
+    ui->plot->xAxis->setRange(QCPRange(xDelta,xProfile.count()*fabs(xScale)+xDelta));
+    ui->plot->yAxis->setRange(QCPRange(yDelta,yProfile.count()*fabs(yScale)+yDelta));
 
-    ui->plot->xAxis2->setRange(QCPRange(0,1));
-    ui->plot->yAxis2->setRange(QCPRange(0,1));
+    ui->plot->xAxis2->setRange(QCPRange(0,4));
+    ui->plot->yAxis2->setRange(QCPRange(0,4));
 
     ui->plot->replot();
+}
+
+void MainWindow::handleOpenResult(QString name, bool status)
+{
+    if(name == "X"){
+        if(status){
+            setEnabledXCamer(false);
+        }else{
+            QMessageBox::critical(this,"Ошибка","Не удалось подключиться.");
+        }
+    }
+    if(name == "Y"){
+        if(status){
+            setEnabledYCamer(false);
+        }else{
+            QMessageBox::critical(this,"Ошибка","Не удалось подключиться.");
+        }
+    }
+}
+
+void MainWindow::handleLostConnection(QString name)
+{
+    on_startStopButton_clicked();
+
+    if(name == "X"){
+        setEnabledXCamer(true);
+        QMessageBox::critical(this,"Ошибка","Связь с камерой X потеряна.");
+    }
+    if(name == "Y"){
+        setEnabledYCamer(true);
+        QMessageBox::critical(this,"Ошибка","Связь с камерой Y потеряна.");
+    }
+
 }
 
 void MainWindow::saveCalibration(QString type, double scale, double delta, int start, int stop, int otherPixel)
@@ -307,9 +391,10 @@ void MainWindow::saveCalibration(QString type, double scale, double delta, int s
         xStartPosition = start;
         xStopPosition = stop;
         yPositionForXAxis = otherPixel;
-        xProfile.resize(xStopPosition-xStartPosition);
+        xProfile.resize(abs(xStopPosition-xStartPosition));
+        xLengthKeys.clear();
         for(int i = 0; i < xProfile.count(); i++){
-            xLengthKeys.append(xDelta + xScale*i);
+            xLengthKeys.append(xDelta + fabs(xScale)*i);
         }
         ui->plot->xAxis->setRange(QCPRange(xDelta,(xStopPosition-xStartPosition)*xScale+xDelta));
         ui->plot->replot();
@@ -321,9 +406,10 @@ void MainWindow::saveCalibration(QString type, double scale, double delta, int s
         yStartPosition = start;
         yStopPosition = stop;
         xPositionForYAxis = otherPixel;
-        yProfile.resize(yStopPosition-yStartPosition);
+        yProfile.resize(abs(yStopPosition-yStartPosition));
+        yLengthKeys.clear();
         for(int i = 0; i < yProfile.count(); i++){
-            yLengthKeys.append(yDelta + yScale*i);
+            yLengthKeys.append(yDelta + fabs(yScale)*i);
         }
         ui->plot->yAxis->setRange(QCPRange(yDelta,(yStopPosition-yStartPosition)*yScale+yDelta));
         ui->plot->replot();
@@ -337,152 +423,106 @@ void MainWindow::on_startStopButton_clicked()
         QMessageBox::critical(this,"Ошибка","Не выполнена калибровка.");
         return ;
     }
-    if(!isRunning){
-        isRunning = true;
-        ui->startStopButton->setText("Стоп");
-        setEnabledAll(false);
-        frameGrapTimer->start();
-    }else{
-        isRunning = false;
-        ui->startStopButton->setText("Старт");
-        setEnabledAll(true);
-        frameGrapTimer->stop();
-    }
-}
+    if(xCapure->isOpend() && yCapure->isOpend()){
+        if(!isRunning){
+            isRunning = true;
+            ui->startStopButton->setText("Стоп");
 
-void MainWindow::on_xCameraTestButton_clicked()
-{
-    if(false){
-        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text());
-        if(!xVideo.isOpened()){
-            xVideo.open(s.toStdString());
-            xVideo >> ximage;
-            if(ximage.data){
-                showPic(ximage);
-            }else{
-                QMessageBox::critical(this,":(",":(");
-            }
+            ui->xCameraCalibrationButton->setEnabled(false);
+            ui->yCameraCalibrationButton->setEnabled(false);
+
+            frameGrapTimer->start();
         }else{
-            xVideo >> ximage;
-            if(ximage.data){
-                showPic(ximage);
-            }else{
-                QMessageBox::critical(this,":(",":(");
-            }
+            isRunning = false;
+            ui->startStopButton->setText("Старт");
+
+            ui->xCameraCalibrationButton->setEnabled(true);
+            ui->yCameraCalibrationButton->setEnabled(true);
+
+            frameGrapTimer->stop();
         }
     }else{
-        Mat pic = imread("D:/1222.png",IMREAD_ANYCOLOR);
-        showPic(pic);
+        QMessageBox::information(this,"Ошибка","Камеры не подключены");
     }
 }
 
-void MainWindow::on_yCameraTestButton_clicked()
-{
-
-    if(false){
-        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text());
-        if(!yVideo.isOpened()){
-            yVideo.open(s.toStdString());
-            yVideo >> yimage;
-            if(yimage.data){
-                showPic(yimage);
-            }else{
-                QMessageBox::critical(this,":(",":(");
-            }
-        }else{
-            yVideo >> yimage;
-            if(yimage.data){
-                showPic(yimage);
-            }else{
-                QMessageBox::critical(this,":(",":(");
-            }
-        }
-    }else{
-        Mat pic = imread("D:/1222.png",IMREAD_ANYCOLOR);
-        showPic(pic);
-    }
-}
 
 void MainWindow::on_xCameraCalibrationButton_clicked()
 {
-    if(false){
-        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text());
-        if(!xVideo.isOpened()){
-            xVideo.open(s.toStdString());
-            xVideo >> ximage;
-            if(ximage.data){
-                calibrate("X",ximage);
-            }else{
-                QMessageBox::critical(this,":(",":(");
-            }
+    if(xCapure->isOpend()){
+        Mat pic = xCapure->takeSingleFrame();
+        if(pic.data){
+            calibrate("X",pic);
         }else{
-            xVideo >> ximage;
-            if(ximage.data){
-                calibrate("X",ximage);
-            }else{
-                QMessageBox::critical(this,":(",":(");
-            }
+            QMessageBox::critical(this,":(",":(");
         }
-    }else{
-        Mat pic = imread("D:/1222.png",IMREAD_ANYCOLOR);
-        calibrate("X",pic);
     }
 }
 
 void MainWindow::on_yCameraCalibrationButton_clicked()
 {
-    if(false){
-        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text());
-
-        if(!yVideo.isOpened()){
-            yVideo.open(s.toStdString());
-            yVideo >> yimage;
-            if(yimage.data){
-                calibrate("Y",yimage);
-            }else{
-                QMessageBox::critical(this,":(",":(");
-            }
+    if(yCapure->isOpend()){
+        Mat pic = yCapure->takeSingleFrame();
+        if(pic.data){
+            calibrate("Y",pic);
         }else{
-            yVideo >> yimage;
-            if(yimage.data){
-                calibrate("Y",yimage);
-            }else{
-                QMessageBox::critical(this,":(",":(");
-            }
+            QMessageBox::critical(this,":(",":(");
         }
-    }else{
-        Mat pic = imread("D:/1222.png",IMREAD_ANYCOLOR);
-        calibrate("Y",pic);
     }
 }
 
-void MainWindow::handleFrame()
+void MainWindow::handleFrame(QString name, Mat newPic)
 {
-    if(!xVideo.isOpened()){
-        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text());
-        xVideo.open(s.toStdString());
+    if(name == "X"){
+        xReady = true;
+        ximage = newPic;
     }
-    if(!yVideo.isOpened()){
-        QString s = QString("rtsp://%1:%2@%3:554").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text());
-        yVideo.open(s.toStdString());
+    if(name == "Y"){
+        yReady = true;
+        yimage = newPic;
     }
-    xVideo >> ximage;
-    yVideo >> yimage;
+    if(xReady && yReady){
+        xReady = false;
+        yReady = false;
 
-    if(ximage.data && yimage.data){
-        for(int x = xStartPosition; x < xStopPosition; x++) {
+        int start = 0;
+        int stop = 0;
+        if(xScale > 0){
+            start = xStartPosition;
+            stop = xStopPosition;
+        }else{
+            start = xStopPosition;
+            stop = xStartPosition;
+        }
+        for(int x = start; x < stop; x++) {
             uchar b = ximage.at<Vec3b>(yPositionForXAxis,x)[0];
-            xProfile[x-xStartPosition] = (double)b/255.0;
+            xProfile[x-start] = (double)b/255.0;
         }
 
-        for(int y = yStartPosition; y < yStopPosition; y++) {
+        if(yScale > 0){
+            start = yStartPosition;
+            stop = yStopPosition;
+        }else{
+            start = yStopPosition;
+            stop = yStartPosition;
+        }
+
+        for(int y = start; y < stop; y++) {
             uchar b = yimage.at<Vec3b>(y,xPositionForYAxis)[0];
-            yProfile[y-yStartPosition] = (double)b/255.0;
+            yProfile[y-start] = (double)b/255.0;
         }
         updateProfiles(xProfile,yProfile);
-    }else{
-        on_startStopButton_clicked();
-        QMessageBox::critical(this,"Ошибка","Нет связи с камерами.");
     }
+}
 
+void MainWindow::on_xCameraConnectButton_clicked()
+{
+    xCapure->setConnectionString(QString("rtsp://%1:%2@%3:554").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text()));
+    emit openXCapture();
+}
+
+void MainWindow::on_yCameraConnectButton_clicked()
+{
+    yCapure->setConnectionString(QString("rtsp://%1:%2@%3:554").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text()));
+    emit openYCapture();
 }
