@@ -77,13 +77,18 @@ public:
     void initPlot();
     QCPGraph *xProfileGraph;
     QCPGraph *yProfileGraph;
+
     QCPGraph *xSmoothProfileGraph;
     QCPGraph *ySmoothProfileGraph;
+
+    QCPGraph *xSmoothSmoothProfileGraph;
+    QCPGraph *ySmoothSmoothProfileGraph;
     QCPColorMap *xyProfileMap;
     QCPColorScale *colorScale;
     QCPColorGradient g;
     QCPItemLine *widthLine;
     QCPItemLine *heightLine;
+    QCPItemTracer *centerTracer;
     //===========================================================
     void setEnabledXCamer(bool value);
     void setEnabledYCamer(bool value);

@@ -87,6 +87,8 @@ void MainWindow::loadSettings()
 
         ui->xCameraUsernameEdit->setText(settings.value(xUserNameSettingsName).toString());
         ui->yCameraUsernameEdit->setText(settings.value(yUserNameSettingsName).toString());
+
+
     }else{
         //QMessageBox::warning(this,"Внимание","Файл настрок не найден. Значения дефолтные.");
         saveSettings();
@@ -159,10 +161,21 @@ void MainWindow::initPlot()
     ySmoothProfileGraph = ui->plot->addGraph(ui->plot->yAxis,ui->plot->xAxis2);
     xSmoothProfileGraph->setLayer("mid");
     ySmoothProfileGraph->setLayer("mid");
-    QPen pp(QColor(Qt::blue));
-    pp.setWidth(2);
+
+    QPen pp(QColor(0,0,255,128));
+    pp.setWidth(1);
     xSmoothProfileGraph->setPen(pp);
     ySmoothProfileGraph->setPen(pp);
+
+    xSmoothSmoothProfileGraph = ui->plot->addGraph(ui->plot->xAxis,ui->plot->yAxis2);
+    ySmoothSmoothProfileGraph = ui->plot->addGraph(ui->plot->yAxis,ui->plot->xAxis2);
+    xSmoothSmoothProfileGraph->setLayer("mid");
+    ySmoothSmoothProfileGraph->setLayer("mid");
+
+    QPen ppp(QColor(0,0,255));
+    ppp.setWidth(2);
+    xSmoothSmoothProfileGraph->setPen(ppp);
+    ySmoothSmoothProfileGraph->setPen(ppp);
 
     xyProfileMap = new QCPColorMap(ui->plot->xAxis,ui->plot->yAxis);
     xyProfileMap->setLayer("low");
@@ -174,7 +187,10 @@ void MainWindow::initPlot()
     ui->plot->xAxis2->setRange(QCPRange(0,4));
     ui->plot->yAxis2->setRange(QCPRange(0,4));
 
-    xyProfileMap->data()->setRange(QCPRange(xDelta,abs(xStopPosition-xStartPosition)*xScale+xDelta),QCPRange(yDelta,abs(yStopPosition-yStartPosition)*yScale+yDelta));
+    //xyProfileMap->data()->setRange(QCPRange(xDelta,abs(xStopPosition-xStartPosition)*xScale+xDelta),QCPRange(yDelta,abs(yStopPosition-yStartPosition)*yScale+yDelta));
+    xyProfileMap->data()->clear();
+    xyProfileMap->data()->setSize(xProfile.count(),yProfile.count());
+    xyProfileMap->data()->setRange(QCPRange(xDelta,xProfile.count()*fabs(xScale)+xDelta),QCPRange(yDelta,yProfile.count()*fabs(yScale)+yDelta));
 
 
     colorScale = new QCPColorScale(ui->plot);
@@ -199,6 +215,12 @@ void MainWindow::initPlot()
     heightLine = new QCPItemLine(ui->plot);
     heightLine->setPen(p);
     heightLine->setLayer("top");
+
+
+    centerTracer = new QCPItemTracer(ui->plot);
+    centerTracer->setLayer("mid");
+    centerTracer->setStyle(QCPItemTracer::tsPlus);
+    centerTracer->setSize(5);
 
     ui->plot->moveLayer(ui->plot->layer("grid"),ui->plot->layer("top"));
     ui->plot->replot();
@@ -245,18 +267,31 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     //-------------------------------------------------
     WaveletSpectrum *dwt = new WaveletSpectrum(xProfile,WaveletSpectrum::BSPLINE_309);
     dwt->highFilter(0);
-    //dwt->levelFilter(dwt->getLevels()-1,0);
-    //dwt->levelFilter(dwt->getLevels()-2,0);
     QVector<double> xSmoothProfile;
     xSmoothProfile = dwt->toData();
-    dwt->deleteLater();
+
+    dwt->levelFilter((dwt->getLevels()/2)-1,0);
+    dwt->levelFilter((dwt->getLevels()/2)-2,0);
+
+    QVector<double> xSmoothSmoothProfile;
+    xSmoothSmoothProfile = dwt->toData();
+
+    delete dwt;
+
     dwt = new WaveletSpectrum(yProfile,WaveletSpectrum::BSPLINE_309);
     dwt->highFilter(0);
-    //dwt->levelFilter(dwt->getLevels()-1,0);
-    //dwt->levelFilter(dwt->getLevels()-2,0);
+
     QVector<double> ySmoothProfile;
     ySmoothProfile = dwt->toData();
-    dwt->deleteLater();
+
+    dwt->levelFilter((dwt->getLevels()/2)-1,0);
+    dwt->levelFilter((dwt->getLevels()/2)-2,0);
+
+    QVector<double> ySmoothSmoothProfile;
+    ySmoothSmoothProfile = dwt->toData();
+
+
+    delete dwt;
     //--------------------------------------------
     double xMax = 0;
     int xMaxId = 0;
@@ -264,15 +299,15 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     double yMax = 0;
     int yMaxId = 0;
 
-    for(int i = 0; i < xSmoothProfile.count(); i++){
-        if(xSmoothProfile.at(i) > xMax){
-            xMax = xSmoothProfile.at(i);
+    for(int i = 0; i < xSmoothSmoothProfile.count(); i++){
+        if(xSmoothSmoothProfile.at(i) > xMax){
+            xMax = xSmoothSmoothProfile.at(i);
             xMaxId = i;
         }
     }
-    for(int i = 0; i < ySmoothProfile.count(); i++){
-        if(ySmoothProfile.at(i) > yMax){
-            yMax = ySmoothProfile.at(i);
+    for(int i = 0; i < ySmoothSmoothProfile.count(); i++){
+        if(ySmoothSmoothProfile.at(i) > yMax){
+            yMax = ySmoothSmoothProfile.at(i);
             yMaxId = i;
         }
     }
@@ -280,26 +315,26 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     QVector<int> xWidthKeys;
     QVector<int> yHeightKeys;
     for(int i = 1; i < xSmoothProfile.count()-1; i++){
-        if(xSmoothProfile.at(i-1) < xMax/5.0 && xSmoothProfile.at(i+1) > xMax/5.0){
+        if(xSmoothProfile.at(i-1) < xMax/2.0 && xSmoothProfile.at(i+1) > xMax/2.0){
             xWidthKeys.append(i);
             break;
         }
     }
     for(int i = 1; i < xSmoothProfile.count()-1; i++){
-        if(xSmoothProfile.at(i-1) > xMax/5.0 && xSmoothProfile.at(i+1) < xMax/5.0){
+        if(xSmoothProfile.at(i-1) > xMax/2.0 && xSmoothProfile.at(i+1) < xMax/2.0){
             xWidthKeys.append(i);
             break;
         }
     }
 
     for(int i = 1; i < ySmoothProfile.count()-1; i++){
-        if(ySmoothProfile.at(i-1) < yMax/5.0 && ySmoothProfile.at(i+1) > yMax/5.0){
+        if(ySmoothProfile.at(i-1) < yMax/2.0 && ySmoothProfile.at(i+1) > yMax/2.0){
             yHeightKeys.append(i);
             break;
         }
     }
     for(int i = 1; i < ySmoothProfile.count()-1; i++){
-        if(ySmoothProfile.at(i-1) > yMax/5.0 && ySmoothProfile.at(i+1) < yMax/5.0){
+        if(ySmoothProfile.at(i-1) > yMax/2.0 && ySmoothProfile.at(i+1) < yMax/2.0){
             yHeightKeys.append(i);
             break;
         }
@@ -315,10 +350,20 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
             ui->widthLabel->setText(QString::number(xLengthKeys.at(xWidthKeys[1])-xLengthKeys.at(xWidthKeys[0])));
             ui->heightLabel->setText(QString::number(yLengthKeys.at(yHeightKeys[1])-yLengthKeys.at(yHeightKeys[0])));
         }
+    }else{
+        widthLine->start->setCoords(xLengthKeys.at(0),yLengthKeys.at(0));
+        widthLine->end->setCoords(xLengthKeys.at(0),yLengthKeys.at(0));
+
+        heightLine->start->setCoords(xLengthKeys.at(0),yLengthKeys.at(0));
+        heightLine->end->setCoords(xLengthKeys.at(0),yLengthKeys.at(0));
+
+        ui->widthLabel->setText("--");
+        ui->heightLabel->setText("--");
     }
 
     ui->xMaxLabel->setText(QString::number(xLengthKeys.at(xMaxId)));
     ui->yMaxLabel->setText(QString::number(yLengthKeys.at(yMaxId)));
+    centerTracer->position->setCoords(xLengthKeys.at(xMaxId),yLengthKeys.at(yMaxId));
 
     //--------------------------------------------
     xProfileGraph->clearData();
@@ -326,18 +371,23 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     yProfileGraph->clearData();
     yProfileGraph->setData(yLengthKeys,yProfile);
 
+    xSmoothSmoothProfileGraph->clearData();
+    xSmoothSmoothProfileGraph->setData(xLengthKeys,xSmoothSmoothProfile);
+    ySmoothSmoothProfileGraph->clearData();
+    ySmoothSmoothProfileGraph->setData(yLengthKeys,ySmoothSmoothProfile);
+
     xSmoothProfileGraph->clearData();
     xSmoothProfileGraph->setData(xLengthKeys,xSmoothProfile);
     ySmoothProfileGraph->clearData();
     ySmoothProfileGraph->setData(yLengthKeys,ySmoothProfile);
+
+
     //--------------------------------------------
 
-    xyProfileMap->data()->clear();
-    xyProfileMap->data()->setSize(xProfile.count(),yProfile.count());
-    xyProfileMap->data()->setRange(QCPRange(xDelta,xProfile.count()*fabs(xScale)+xDelta),QCPRange(yDelta,yProfile.count()*fabs(yScale)+yDelta));
+
     for(int y = 0; y < ySmoothProfile.count(); y++){
         for(int x = 0; x < xSmoothProfile.count(); x++){
-            xyProfileMap->data()->setCell(x,y,xSmoothProfile[x]*ySmoothProfile[y]);
+            xyProfileMap->data()->setCell(x,y,xProfile[x]*yProfile[y]);
         }
     }
 
@@ -374,11 +424,11 @@ void MainWindow::handleLostConnection(QString name)
 
     if(name == "X"){
         setEnabledXCamer(true);
-        QMessageBox::critical(this,"Ошибка","Связь с камерой X потеряна.");
+        //QMessageBox::critical(this,"Ошибка","Связь с камерой X потеряна.");
     }
     if(name == "Y"){
         setEnabledYCamer(true);
-        QMessageBox::critical(this,"Ошибка","Связь с камерой Y потеряна.");
+        //QMessageBox::critical(this,"Ошибка","Связь с камерой Y потеряна.");
     }
 
 }
@@ -512,17 +562,19 @@ void MainWindow::handleFrame(QString name, Mat newPic)
             yProfile[y-start] = (double)b/255.0;
         }
         updateProfiles(xProfile,yProfile);
+        yimage.release();
+        ximage.release();
     }
 }
 
 void MainWindow::on_xCameraConnectButton_clicked()
 {
-    xCapure->setConnectionString(QString("rtsp://%1:%2@%3:554").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text()));
+    xCapure->setConnectionString(QString("rtsp://%1:%2@%3:554/Streaming/Channels/103").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text()));
     emit openXCapture();
 }
 
 void MainWindow::on_yCameraConnectButton_clicked()
 {
-    yCapure->setConnectionString(QString("rtsp://%1:%2@%3:554").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text()));
+    yCapure->setConnectionString(QString("rtsp://%1:%2@%3:554/Streaming/Channels/103").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text()));
     emit openYCapture();
 }

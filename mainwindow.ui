@@ -33,10 +33,10 @@
     <item row="2" column="0">
      <widget class="QLabel" name="label_3">
       <property name="toolTip">
-       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Версия приложения 2.0&lt;br/&gt;Версия Qt 5.8&lt;br/&gt;Версия OpenCV 3.2&lt;br/&gt;Тимофей&lt;br/&gt;timaisabrony@gmail.com&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Версия приложения 2.1&lt;br/&gt;Версия Qt 5.8&lt;br/&gt;Версия OpenCV 3.2&lt;br/&gt;Тимофей&lt;br/&gt;timaisabrony@gmail.com&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
       <property name="text">
-       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#7e7e7e;&quot;&gt;v2.0&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#7e7e7e;&quot;&gt;v2.1&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
      </widget>
     </item>
@@ -287,7 +287,7 @@
        <item row="2" column="6" rowspan="2">
         <widget class="QLineEdit" name="yCameraPassword">
          <property name="text">
-          <string>bnctcam208</string>
+          <string>bnctcam207</string>
          </property>
          <property name="echoMode">
           <enum>QLineEdit::Password</enum>
@@ -316,7 +316,7 @@
        <item row="0" column="6">
         <widget class="QLineEdit" name="xCameraPassword">
          <property name="text">
-          <string>bnctcam207</string>
+          <string>bnctcam208</string>
          </property>
          <property name="echoMode">
           <enum>QLineEdit::Password</enum>

@@ -23,7 +23,7 @@ CalibrationForm::CalibrationForm(QString type, Mat pic, QWidget *parent) :
     ui->setStopAxisButton->setText(ui->setStopAxisButton->text()+type);
     inUsePic = QImage(sourcePic);
     ui->label->setPixmap(QPixmap::fromImage(inUsePic));
-    ui->label->setScaledContents(true);
+    //ui->label->setScaledContents(true);
 
     connect(ui->label,SIGNAL(clicked(QMouseEvent*)),this,SLOT(labelClicked(QMouseEvent*)));
 }
