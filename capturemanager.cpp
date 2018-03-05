@@ -4,6 +4,7 @@ CaptureManager::CaptureManager(unsigned int grabInterval, QObject *parent) : QOb
 {
     grabTimer = new QTimer(this);
     grabTimer->setInterval(grabInterval);
+    grabTimer->setSingleShot(true);
     connect(grabTimer,SIGNAL(timeout()),this,SLOT(grabFrame()));
 }
 
@@ -26,12 +27,9 @@ Mat CaptureManager::takeSingleFrame()
         lock.unlock();
         if(cap.retrieve(pic)){
             return pic;
-        }else{
-            qDebug() << name << QTime::currentTime().toString() << "not readed!";
         }
     }else{
         lock.unlock();
-        qDebug() << name << QTime::currentTime().toString() << "not open!";
     }
     return pic;
 }
@@ -43,34 +41,29 @@ void CaptureManager::getFrame()
         lock.unlock();
         Mat pic;
         if(cap.retrieve(pic)){
-            emit newFrame(name,pic);
+            emit newFrame(type,pic);
         }else{
-            qDebug() << name << QTime::currentTime().toString() << "not retrieved!";
-            emit losedConnection(name);
+            emit losedConnection(type);
             grabTimer->stop();
             cap.release();
         }
     }else{
         lock.unlock();
-        qDebug() << name << QTime::currentTime().toString() << "not open!";
-        emit losedConnection(name);
+        emit losedConnection(type);
         grabTimer->stop();
     }
 }
 
 void CaptureManager::open()
 {
-    qDebug() << name << QTime::currentTime().toString() << "trying to open";
     lock.lockForWrite();
     if(!cap.isOpened()){
         cap.open(connectionString.toStdString());
         if(cap.isOpened()){
             grabTimer->start();
-            qDebug() << name << QTime::currentTime().toString() << "done";
-            emit openResult(name,true);
+            emit openResult(type,true);
         }else{
-            qDebug() << name << QTime::currentTime().toString() << "could not open";
-            emit openResult(name,false);
+            emit openResult(type,false);
         }
     }
     lock.unlock();
@@ -93,9 +86,9 @@ void CaptureManager::setConnectionString(QString connectionString)
 void CaptureManager::grabFrame()
 {
     if(!cap.grab()){
-        grabTimer->stop();
-        emit losedConnection(name);
+        emit losedConnection(type);
         cap.release();
-        qDebug() << name << QTime::currentTime().toString() << "Could bot grab.";
+    }else{
+        grabTimer->start();
     }
 }

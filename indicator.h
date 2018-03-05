@@ -14,12 +14,14 @@ public:
     bool isTernedOn();
 private:
     QPixmap onPix;
+    QPixmap onPix2;
     QPixmap offPix;
     bool value;
 signals:
 
 public slots:
     void setState(bool value);
+    void blink();
 };
 
 

@@ -19,7 +19,7 @@ class CalibrationForm : public QWidget
     Q_OBJECT
 
 public:
-    explicit CalibrationForm(QString type,Mat pic,QWidget *parent = 0);
+    explicit CalibrationForm(Qt::Orientation type, Mat pic, QWidget *parent = 0);
     ~CalibrationForm();
     void setEnambledAll(bool value);
     bool settingStart = false;
@@ -27,14 +27,14 @@ public:
 
     QImage sourcePic;
     QImage inUsePic;
-    QString type;
+    Qt::Orientation type;
 
 
     int startPixel = 0;
     int otherPixel = 0;
     int stopPixel = 0;
 signals:
-    void saveCalibration(QString type,double scale, double delta,int start, int stop, int otherPixel);
+    void saveCalibration(Qt::Orientation type,double scale, double delta,int start, int stop, int otherPixel);
 private slots:
     void on_setStartAxisButton_clicked();
 

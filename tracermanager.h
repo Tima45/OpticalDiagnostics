@@ -10,11 +10,12 @@ class TracerManager : public QObject
 {
     Q_OBJECT
 public:
-    explicit TracerManager(int tracerCount,QCustomPlot *plot,QObject *parent = 0);
-    void apdateTracers(double x, double y);
+    explicit TracerManager(int tracerCount, QCustomPlot *plot, QObject *parent = 0);
+    void apdateLines(double x, double y);
     int tracerCount;
+    int iterator = 0;
     QCustomPlot *plot;
-    QVector<QCPItemTracer*> tracers;
+    QList<QCPItemTracer*> tracers;
     QVector<QPen> colors;
 signals:
 

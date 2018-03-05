@@ -2,5 +2,6 @@
     <qresource prefix="/picures">
         <file>indicatorOff.png</file>
         <file>indicatorOn.png</file>
+        <file>indicatorOn2.png</file>
     </qresource>
 </RCC>

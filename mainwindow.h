@@ -12,6 +12,7 @@
 #include "showpicform.h"
 #include "calibrationform.h"
 #include "capturemanager.h"
+#include "tracermanager.h"
 #include <cv.hpp>
 
 using namespace cv;
@@ -62,7 +63,7 @@ public:
     int yStopPosition = 0;
     //===========================================================
     void showPic(Mat &pic);
-    void calibrate(QString type,Mat &pic);
+    void calibrate(Qt::Orientation type, Mat &pic);
 
     CaptureManager *xCapure;
     CaptureManager *yCapure;
@@ -89,6 +90,8 @@ public:
     QCPItemLine *widthLine;
     QCPItemLine *heightLine;
     QCPItemTracer *centerTracer;
+
+    TracerManager *manager;
     //===========================================================
     void setEnabledXCamer(bool value);
     void setEnabledYCamer(bool value);
@@ -102,16 +105,16 @@ signals:
     void openXCapture();
     void openYCapture();
 private slots:
-    void handleLostConnection(QString name);
-    void handleOpenResult(QString name, bool status);
-    void saveCalibration(QString type,double scale, double delta,int start, int stop, int otherPixel);
+    void handleLostConnection(Qt::Orientation type);
+    void handleOpenResult(Qt::Orientation type, bool status);
+    void saveCalibration(Qt::Orientation type,double scale, double delta,int start, int stop, int otherPixel);
     void on_startStopButton_clicked();
 
     void on_xCameraCalibrationButton_clicked();
 
     void on_yCameraCalibrationButton_clicked();
 
-    void handleFrame(QString name, Mat newPic);
+    void handleFrame(Qt::Orientation type, Mat newPic);
 
     void on_xCameraConnectButton_clicked();
 
@@ -119,8 +122,21 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+
+    QVector<int> xWidthKeys;
+    QVector<int> yHeightKeys;
+
+
     QVector<double> xProfile;
     QVector<double> yProfile;
+
+    QVector<double> xSmoothProfile;
+    QVector<double> ySmoothProfile;
+
+    QVector<double> xSmoothSmoothProfile;
+    QVector<double> ySmoothSmoothProfile;
+
+
     QVector<double> xLengthKeys;
     QVector<double> yLengthKeys;
 };

@@ -15,7 +15,7 @@ class CaptureManager : public QObject
     Q_OBJECT
 public:
     explicit CaptureManager(unsigned int grabInterval,QObject *parent = 0);
-    QString name;
+    Qt::Orientation type;
     ~CaptureManager();
     QString connectionString;
     VideoCapture cap;
@@ -25,9 +25,9 @@ public:
     bool isOpend();
     Mat takeSingleFrame();
 signals:
-    void newFrame(QString name,Mat frame);
-    void losedConnection(QString name);
-    void openResult(QString name,bool result);
+    void newFrame(Qt::Orientation type,Mat frame);
+    void losedConnection(Qt::Orientation type);
+    void openResult(Qt::Orientation type,bool result);
 public slots:
     void getFrame();
     void open();

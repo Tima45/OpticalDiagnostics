@@ -10,9 +10,9 @@ MainWindow::MainWindow(QWidget *parent) :
     initPlot();
 
     xCapure = new CaptureManager(30);
-    xCapure->name = "X";
+    xCapure->type = Qt::Horizontal;
     yCapure = new CaptureManager(30);
-    yCapure->name = "Y";
+    yCapure->type = Qt::Vertical;
 
     xThread = new QThread(this);
     yThread = new QThread(this);
@@ -29,17 +29,18 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(frameGrapTimer,SIGNAL(timeout()),yCapure,SLOT(getFrame()),Qt::QueuedConnection);
 
     qRegisterMetaType<Mat>("Mat");
+    qRegisterMetaType<Qt::Orientation>("Qt::Orientation");
 
 
     connect(this,SIGNAL(openXCapture()),xCapure,SLOT(open()));
     connect(this,SIGNAL(openYCapture()),yCapure,SLOT(open()));
-    connect(xCapure,SIGNAL(openResult(QString,bool)),this,SLOT(handleOpenResult(QString,bool)));
-    connect(yCapure,SIGNAL(openResult(QString,bool)),this,SLOT(handleOpenResult(QString,bool)));
+    connect(xCapure,SIGNAL(openResult(Qt::Orientation,bool)),this,SLOT(handleOpenResult(Qt::Orientation,bool)));
+    connect(yCapure,SIGNAL(openResult(Qt::Orientation,bool)),this,SLOT(handleOpenResult(Qt::Orientation,bool)));
 
-    connect(xCapure,SIGNAL(newFrame(QString,Mat)),this,SLOT(handleFrame(QString,Mat)),Qt::QueuedConnection);
-    connect(xCapure,SIGNAL(losedConnection(QString)),this,SLOT(handleLostConnection(QString)),Qt::QueuedConnection);
-    connect(yCapure,SIGNAL(newFrame(QString,Mat)),this,SLOT(handleFrame(QString,Mat)),Qt::QueuedConnection);
-    connect(yCapure,SIGNAL(losedConnection(QString)),this,SLOT(handleLostConnection(QString)),Qt::QueuedConnection);
+    connect(xCapure,SIGNAL(newFrame(Qt::Orientation,Mat)),this,SLOT(handleFrame(Qt::Orientation,Mat)),Qt::QueuedConnection);
+    connect(xCapure,SIGNAL(losedConnection(Qt::Orientation)),this,SLOT(handleLostConnection(Qt::Orientation)),Qt::QueuedConnection);
+    connect(yCapure,SIGNAL(newFrame(Qt::Orientation,Mat)),this,SLOT(handleFrame(Qt::Orientation,Mat)),Qt::QueuedConnection);
+    connect(yCapure,SIGNAL(losedConnection(Qt::Orientation)),this,SLOT(handleLostConnection(Qt::Orientation)),Qt::QueuedConnection);
 
 
 }
@@ -121,10 +122,10 @@ void MainWindow::showPic(Mat &pic)
     f->show();
 }
 
-void MainWindow::calibrate(QString type, Mat &pic)
+void MainWindow::calibrate(Qt::Orientation type, Mat &pic)
 {
     CalibrationForm *f = new CalibrationForm(type,pic);
-    connect(f,SIGNAL(saveCalibration(QString,double,double,int,int,int)),this,SLOT(saveCalibration(QString,double,double,int,int,int)));
+    connect(f,SIGNAL(saveCalibration(Qt::Orientation,double,double,int,int,int)),this,SLOT(saveCalibration(Qt::Orientation,double,double,int,int,int)));
     f->setAttribute(Qt::WA_DeleteOnClose);
     f->show();
 }
@@ -199,7 +200,7 @@ void MainWindow::initPlot()
     g.setColorInterpolation(QCPColorGradient::ColorInterpolation::ciRGB);
     g.setColorStopAt(0,QColor(255,255,255));
     g.setColorStopAt(1,QColor(0,0,255));
-    g.setLevelCount(50);
+    //g.setLevelCount(50);
     colorScale->setGradient(g);
     colorScale->setDataRange(QCPRange(0,1));
     ui->plot->plotLayout()->addElement(0,1,colorScale);
@@ -222,6 +223,8 @@ void MainWindow::initPlot()
     centerTracer->setStyle(QCPItemTracer::tsPlus);
     centerTracer->setSize(5);
 
+
+    manager = new TracerManager(190,ui->plot);
     ui->plot->moveLayer(ui->plot->layer("grid"),ui->plot->layer("top"));
     ui->plot->replot();
 }
@@ -249,6 +252,9 @@ void MainWindow::setEnabledYCamer(bool value)
 
 void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProfile)
 {
+    ui->xIndicator->blink();
+    ui->yIndicator->blink();
+
     if(xScale < 0){
         for(int i = 0; i < xProfile.count()/2; i++){
             double tmp = xProfile[i];
@@ -265,32 +271,22 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     }
 
     //-------------------------------------------------
+
     WaveletSpectrum *dwt = new WaveletSpectrum(xProfile,WaveletSpectrum::BSPLINE_309);
     dwt->highFilter(0);
-    QVector<double> xSmoothProfile;
     xSmoothProfile = dwt->toData();
-
     dwt->levelFilter((dwt->getLevels()/2)-1,0);
     dwt->levelFilter((dwt->getLevels()/2)-2,0);
-
-    QVector<double> xSmoothSmoothProfile;
     xSmoothSmoothProfile = dwt->toData();
-
     delete dwt;
+
 
     dwt = new WaveletSpectrum(yProfile,WaveletSpectrum::BSPLINE_309);
     dwt->highFilter(0);
-
-    QVector<double> ySmoothProfile;
     ySmoothProfile = dwt->toData();
-
     dwt->levelFilter((dwt->getLevels()/2)-1,0);
     dwt->levelFilter((dwt->getLevels()/2)-2,0);
-
-    QVector<double> ySmoothSmoothProfile;
     ySmoothSmoothProfile = dwt->toData();
-
-
     delete dwt;
     //--------------------------------------------
     double xMax = 0;
@@ -312,8 +308,9 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
         }
     }
     //--------------------------------------------
-    QVector<int> xWidthKeys;
-    QVector<int> yHeightKeys;
+
+    xWidthKeys.clear();
+    yHeightKeys.clear();
     for(int i = 1; i < xSmoothProfile.count()-1; i++){
         if(xSmoothProfile.at(i-1) < xMax/2.0 && xSmoothProfile.at(i+1) > xMax/2.0){
             xWidthKeys.append(i);
@@ -347,8 +344,8 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
             heightLine->start->setCoords(xLengthKeys.at(xMaxId),yLengthKeys.at(yHeightKeys[0]));
             heightLine->end->setCoords(xLengthKeys.at(xMaxId),yLengthKeys.at(yHeightKeys[1]));
 
-            ui->widthLabel->setText(QString::number(xLengthKeys.at(xWidthKeys[1])-xLengthKeys.at(xWidthKeys[0])));
-            ui->heightLabel->setText(QString::number(yLengthKeys.at(yHeightKeys[1])-yLengthKeys.at(yHeightKeys[0])));
+            ui->widthLabel->setText(QString::number(qRound(xLengthKeys.at(xWidthKeys[1])-xLengthKeys.at(xWidthKeys[0]))));
+            ui->heightLabel->setText(QString::number(qRound(yLengthKeys.at(yHeightKeys[1])-yLengthKeys.at(yHeightKeys[0]))));
         }
     }else{
         widthLine->start->setCoords(xLengthKeys.at(0),yLengthKeys.at(0));
@@ -361,9 +358,10 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
         ui->heightLabel->setText("--");
     }
 
-    ui->xMaxLabel->setText(QString::number(xLengthKeys.at(xMaxId)));
-    ui->yMaxLabel->setText(QString::number(yLengthKeys.at(yMaxId)));
+    ui->xMaxLabel->setText(QString::number(qRound(xLengthKeys.at(xMaxId))));
+    ui->yMaxLabel->setText(QString::number(qRound(yLengthKeys.at(yMaxId))));
     centerTracer->position->setCoords(xLengthKeys.at(xMaxId),yLengthKeys.at(yMaxId));
+    manager->apdateLines(xLengthKeys.at(xMaxId),yLengthKeys.at(yMaxId));
 
     //--------------------------------------------
     xProfileGraph->clearData();
@@ -387,7 +385,17 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
 
     for(int y = 0; y < ySmoothProfile.count(); y++){
         for(int x = 0; x < xSmoothProfile.count(); x++){
-            xyProfileMap->data()->setCell(x,y,xProfile[x]*yProfile[y]);
+            double value;
+            if(ui->noSmoothRadioButton->isChecked()){
+                value = xProfile[x]*yProfile[y];
+            }
+            if(ui->smoothRadioButton->isChecked()){
+                value = xSmoothProfile[x]*ySmoothProfile[y];
+            }
+            if(ui->smoothSmoothRadioButton->isChecked()){
+                value = xSmoothSmoothProfile[x]*ySmoothSmoothProfile[y];
+            }
+            xyProfileMap->data()->setCell(x,y,value);
         }
     }
 
@@ -400,42 +408,44 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     ui->plot->replot();
 }
 
-void MainWindow::handleOpenResult(QString name, bool status)
+void MainWindow::handleOpenResult(Qt::Orientation type, bool status)
 {
-    if(name == "X"){
+    if(type == Qt::Horizontal){
         if(status){
             setEnabledXCamer(false);
         }else{
+            setEnabledXCamer(true);
             QMessageBox::critical(this,"Ошибка","Не удалось подключиться.");
         }
     }
-    if(name == "Y"){
+    if(type == Qt::Vertical){
         if(status){
             setEnabledYCamer(false);
         }else{
+            setEnabledYCamer(true);
             QMessageBox::critical(this,"Ошибка","Не удалось подключиться.");
         }
     }
 }
 
-void MainWindow::handleLostConnection(QString name)
+void MainWindow::handleLostConnection(Qt::Orientation type)
 {
     on_startStopButton_clicked();
 
-    if(name == "X"){
+    if(type == Qt::Horizontal){
         setEnabledXCamer(true);
         //QMessageBox::critical(this,"Ошибка","Связь с камерой X потеряна.");
     }
-    if(name == "Y"){
+    if(type == Qt::Vertical){
         setEnabledYCamer(true);
         //QMessageBox::critical(this,"Ошибка","Связь с камерой Y потеряна.");
     }
 
 }
 
-void MainWindow::saveCalibration(QString type, double scale, double delta, int start, int stop, int otherPixel)
+void MainWindow::saveCalibration(Qt::Orientation type, double scale, double delta, int start, int stop, int otherPixel)
 {
-    if(type == "X"){
+    if(type == Qt::Horizontal){
         xScale = scale;
         xDelta = delta;
         xStartPosition = start;
@@ -450,7 +460,7 @@ void MainWindow::saveCalibration(QString type, double scale, double delta, int s
         ui->plot->replot();
         saveSettings();
     }
-    if(type == "Y"){
+    if(type == Qt::Vertical){
         yScale = scale;
         yDelta = delta;
         yStartPosition = start;
@@ -502,7 +512,7 @@ void MainWindow::on_xCameraCalibrationButton_clicked()
     if(xCapure->isOpend()){
         Mat pic = xCapure->takeSingleFrame();
         if(pic.data){
-            calibrate("X",pic);
+            calibrate(Qt::Horizontal,pic);
         }else{
             QMessageBox::critical(this,":(",":(");
         }
@@ -514,20 +524,20 @@ void MainWindow::on_yCameraCalibrationButton_clicked()
     if(yCapure->isOpend()){
         Mat pic = yCapure->takeSingleFrame();
         if(pic.data){
-            calibrate("Y",pic);
+            calibrate(Qt::Vertical,pic);
         }else{
             QMessageBox::critical(this,":(",":(");
         }
     }
 }
 
-void MainWindow::handleFrame(QString name, Mat newPic)
+void MainWindow::handleFrame(Qt::Orientation type, Mat newPic)
 {
-    if(name == "X"){
+    if(type == Qt::Horizontal){
         xReady = true;
         ximage = newPic;
     }
-    if(name == "Y"){
+    if(type == Qt::Vertical){
         yReady = true;
         yimage = newPic;
     }
@@ -570,11 +580,15 @@ void MainWindow::handleFrame(QString name, Mat newPic)
 void MainWindow::on_xCameraConnectButton_clicked()
 {
     xCapure->setConnectionString(QString("rtsp://%1:%2@%3:554/Streaming/Channels/103").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text()));
+    setEnabledXCamer(false);
+    ui->xIndicator->setState(false);
     emit openXCapture();
 }
 
 void MainWindow::on_yCameraConnectButton_clicked()
 {
     yCapure->setConnectionString(QString("rtsp://%1:%2@%3:554/Streaming/Channels/103").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text()));
+    setEnabledYCamer(false);
+    ui->yIndicator->setState(false);
     emit openYCapture();
 }

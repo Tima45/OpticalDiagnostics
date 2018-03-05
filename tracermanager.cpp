@@ -3,20 +3,25 @@
 
 TracerManager::TracerManager(int tracerCount, QCustomPlot *plot, QObject *parent) : QObject(parent), tracerCount(tracerCount),plot(plot)
 {
+
     for(int i = 0; i < tracerCount; i++){
-        QPen p;
-        p.setBrush((QColor(0,255,255,qRound((double)i/(double)tracerCount))));
-        colors.append(p);
-        tracers.append(new QCPItemTracer(plot));
-        tracers.last()->setPen(p);
+        QCPItemTracer *t = new QCPItemTracer(plot);
+        t->setLayer("mid");
+        t->position->setCoords(0,0);
+        t->setStyle(QCPItemTracer::tsCircle);
+        QBrush b = QBrush(QColor(0,220,200,20));
+        t->setBrush(b);
+        t->setPen(Qt::NoPen);
+        tracers.append(t);
     }
 }
 
-void TracerManager::apdateTracers(double x, double y)
+void TracerManager::apdateLines(double x, double y)
 {
-    for(int i = 0; i < tracerCount-1; i++){
-        tracers.at(i+1)->setPen(colors.at(i));
+    tracers.at(iterator)->position->setCoords(x,y);
+    iterator++;
+    if(iterator == tracerCount){
+        iterator = 0;
     }
-    tracers.at(tracerCount-1)->position->setCoords(x,y);
 
 }

@@ -1,7 +1,7 @@
 #include "calibrationform.h"
 #include "ui_calibrationform.h"
 
-CalibrationForm::CalibrationForm(QString type, Mat pic, QWidget *parent) :
+CalibrationForm::CalibrationForm(Qt::Orientation type, Mat pic, QWidget *parent) :
     QWidget(parent),
     ui(new Ui::CalibrationForm), type(type)
 {
@@ -19,8 +19,8 @@ CalibrationForm::CalibrationForm(QString type, Mat pic, QWidget *parent) :
         }
     }
 
-    ui->setStartAxisButton->setText(ui->setStartAxisButton->text()+type);
-    ui->setStopAxisButton->setText(ui->setStopAxisButton->text()+type);
+    ui->setStartAxisButton->setText(ui->setStartAxisButton->text());
+    ui->setStopAxisButton->setText(ui->setStopAxisButton->text());
     inUsePic = QImage(sourcePic);
     ui->label->setPixmap(QPixmap::fromImage(inUsePic));
     //ui->label->setScaledContents(true);
@@ -58,13 +58,13 @@ void CalibrationForm::on_setStopAxisButton_clicked()
 void CalibrationForm::labelClicked(QMouseEvent* event)
 {
     if(settingStart){
-        if(type == "X"){
+        if(type == Qt::Horizontal){
             startPixel = event->x();
             otherPixel = event->y();
             drawVericalLine(startPixel);
             ui->startInPixLabel->setText(QString::number(startPixel));
         }
-        if(type == "Y"){
+        if(type == Qt::Vertical){
             startPixel = event->y();
             otherPixel = event->x();
             drawHorisontalLine(startPixel);
@@ -73,12 +73,12 @@ void CalibrationForm::labelClicked(QMouseEvent* event)
         settingStart = false;
     }
     if(settingStop){
-        if(type == "X"){
+        if(type == Qt::Horizontal){
             stopPixel = event->x();
             drawVericalLine(stopPixel);
             ui->stopInPixLabel->setText(QString::number(stopPixel));
         }
-        if(type == "Y"){
+        if(type == Qt::Vertical){
             stopPixel = event->y();
             drawHorisontalLine(stopPixel);
             ui->stopInPixLabel->setText(QString::number(stopPixel));
@@ -87,7 +87,7 @@ void CalibrationForm::labelClicked(QMouseEvent* event)
     }
     if(startPixel != 0 && otherPixel != 0 && stopPixel != 0){
         inUsePic = QImage(sourcePic);
-        if(type == "X"){
+        if(type == Qt::Horizontal){
             drawVericalLine(startPixel);
             drawVericalLine(stopPixel);
             QPainter painter;
@@ -97,7 +97,7 @@ void CalibrationForm::labelClicked(QMouseEvent* event)
             painter.end();
             ui->label->setPixmap(QPixmap::fromImage(inUsePic));
         }
-        if(type == "Y"){
+        if(type == Qt::Vertical){
             drawHorisontalLine(startPixel);
             drawHorisontalLine(stopPixel);
             QPainter painter;
