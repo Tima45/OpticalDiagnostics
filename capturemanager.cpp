@@ -44,13 +44,11 @@ void CaptureManager::getFrame()
             emit newFrame(type,pic);
         }else{
             emit losedConnection(type);
-            grabTimer->stop();
             cap.release();
         }
     }else{
         lock.unlock();
         emit losedConnection(type);
-        grabTimer->stop();
     }
 }
 
@@ -85,10 +83,10 @@ void CaptureManager::setConnectionString(QString connectionString)
 
 void CaptureManager::grabFrame()
 {
-    if(!cap.grab()){
+    if(cap.grab()){
+        grabTimer->start();
+    }else{
         emit losedConnection(type);
         cap.release();
-    }else{
-        grabTimer->start();
     }
 }

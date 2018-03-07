@@ -430,7 +430,11 @@ void MainWindow::handleOpenResult(Qt::Orientation type, bool status)
 
 void MainWindow::handleLostConnection(Qt::Orientation type)
 {
-    on_startStopButton_clicked();
+    if(isRunning){
+        isRunning = false;
+        ui->startStopButton->setText("Старт");
+        frameGrapTimer->stop();
+    }
 
     if(type == Qt::Horizontal){
         setEnabledXCamer(true);
@@ -479,12 +483,20 @@ void MainWindow::saveCalibration(Qt::Orientation type, double scale, double delt
 
 void MainWindow::on_startStopButton_clicked()
 {
-    if(xStartPosition == 0 || xStopPosition == 0 || yStartPosition == 0 || yStartPosition == 0 || xPositionForYAxis == 0 || yPositionForXAxis == 0){
-        QMessageBox::critical(this,"Ошибка","Не выполнена калибровка.");
-        return ;
-    }
-    if(xCapure->isOpend() && yCapure->isOpend()){
-        if(!isRunning){
+    if(isRunning){
+        isRunning = false;
+        ui->startStopButton->setText("Старт");
+
+        ui->xCameraCalibrationButton->setEnabled(true);
+        ui->yCameraCalibrationButton->setEnabled(true);
+
+        frameGrapTimer->stop();
+    }else{
+        if(xStartPosition == 0 || xStopPosition == 0 || yStartPosition == 0 || yStartPosition == 0 || xPositionForYAxis == 0 || yPositionForXAxis == 0){
+            QMessageBox::critical(this,"Ошибка","Не выполнена калибровка.");
+            return ;
+        }
+        if(xCapure->isOpend() && yCapure->isOpend()){
             isRunning = true;
             ui->startStopButton->setText("Стоп");
 
@@ -493,16 +505,8 @@ void MainWindow::on_startStopButton_clicked()
 
             frameGrapTimer->start();
         }else{
-            isRunning = false;
-            ui->startStopButton->setText("Старт");
-
-            ui->xCameraCalibrationButton->setEnabled(true);
-            ui->yCameraCalibrationButton->setEnabled(true);
-
-            frameGrapTimer->stop();
+            QMessageBox::information(this,"Ошибка","Камеры не подключены");
         }
-    }else{
-        QMessageBox::information(this,"Ошибка","Камеры не подключены");
     }
 }
 

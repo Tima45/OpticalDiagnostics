@@ -214,6 +214,9 @@
        </item>
        <item row="2" column="8">
         <widget class="QPushButton" name="yCameraConnectButton">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Выполнить подключение к камере, которая смотрит на ось Y.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string>Подключить</string>
          </property>
@@ -222,7 +225,7 @@
        <item row="0" column="8">
         <widget class="QPushButton" name="xCameraConnectButton">
          <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Выполнить подключение к камере, которая смотрит на ось Х.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
          <property name="text">
           <string>Подключить</string>
@@ -413,10 +416,10 @@
     <item row="2" column="0">
      <widget class="QLabel" name="label_3">
       <property name="toolTip">
-       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Версия приложения 2.1&lt;br/&gt;Версия Qt 5.8&lt;br/&gt;Версия OpenCV 3.2&lt;br/&gt;Тимофей&lt;br/&gt;timaisabrony@gmail.com&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Версия приложения 2.3&lt;br/&gt;Версия Qt 5.8&lt;br/&gt;Версия OpenCV 3.2&lt;br/&gt;Тимофей&lt;br/&gt;timaisabrony@gmail.com&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
       <property name="text">
-       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#7e7e7e;&quot;&gt;v2.1&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; color:#7e7e7e;&quot;&gt;v2.3&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
      </widget>
     </item>
@@ -448,6 +451,22 @@
    <container>1</container>
   </customwidget>
  </customwidgets>
+ <tabstops>
+  <tabstop>startStopButton</tabstop>
+  <tabstop>xCameraIpEdit</tabstop>
+  <tabstop>xCameraUsernameEdit</tabstop>
+  <tabstop>xCameraPassword</tabstop>
+  <tabstop>yCameraIpEdit</tabstop>
+  <tabstop>yCameraUsernameEdit</tabstop>
+  <tabstop>yCameraPassword</tabstop>
+  <tabstop>xCameraConnectButton</tabstop>
+  <tabstop>xCameraCalibrationButton</tabstop>
+  <tabstop>yCameraConnectButton</tabstop>
+  <tabstop>yCameraCalibrationButton</tabstop>
+  <tabstop>noSmoothRadioButton</tabstop>
+  <tabstop>smoothRadioButton</tabstop>
+  <tabstop>smoothSmoothRadioButton</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>
