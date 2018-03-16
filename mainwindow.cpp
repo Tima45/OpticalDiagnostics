@@ -42,7 +42,15 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(yCapure,SIGNAL(newFrame(Qt::Orientation,Mat)),this,SLOT(handleFrame(Qt::Orientation,Mat)),Qt::QueuedConnection);
     connect(yCapure,SIGNAL(losedConnection(Qt::Orientation)),this,SLOT(handleLostConnection(Qt::Orientation)),Qt::QueuedConnection);
 
+    dataBaseManager = new DataBaseManager(dataBaseFlushSec);
+    dataBaseThread = new QThread(this);
+    dataBaseManager->moveToThread(dataBaseThread);
 
+    dataBaseThread->start();
+
+    ui->dataBaseIndicator->setState(dataBaseManager->status);
+
+    connect(dataBaseManager,SIGNAL(flushStatus(bool)),ui->dataBaseIndicator,SLOT(setState(bool)),Qt::QueuedConnection);
 }
 
 MainWindow::~MainWindow()
@@ -55,6 +63,10 @@ MainWindow::~MainWindow()
     xCapure->deleteLater();
     yCapure->deleteLater();
 
+
+    dataBaseThread->terminate();
+
+    dataBaseManager->deleteLater();
 
     delete ui;
 }
@@ -89,6 +101,7 @@ void MainWindow::loadSettings()
         ui->xCameraUsernameEdit->setText(settings.value(xUserNameSettingsName).toString());
         ui->yCameraUsernameEdit->setText(settings.value(yUserNameSettingsName).toString());
 
+        dataBaseFlushSec = settings.value(dataBaseFlushSecSettingsName).toInt();
 
     }else{
         //QMessageBox::warning(this,"Внимание","Файл настрок не найден. Значения дефолтные.");
@@ -113,6 +126,7 @@ void MainWindow::saveSettings()
     settings.setValue(yCameraIpSettingsName,ui->yCameraIpEdit->text());
     settings.setValue(xUserNameSettingsName,ui->xCameraUsernameEdit->text());
     settings.setValue(yUserNameSettingsName,ui->yCameraUsernameEdit->text());
+    settings.setValue(dataBaseFlushSecSettingsName,dataBaseFlushSec);
 }
 
 void MainWindow::showPic(Mat &pic)
@@ -295,16 +309,44 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     double yMax = 0;
     int yMaxId = 0;
 
-    for(int i = 0; i < xSmoothSmoothProfile.count(); i++){
-        if(xSmoothSmoothProfile.at(i) > xMax){
-            xMax = xSmoothSmoothProfile.at(i);
-            xMaxId = i;
+    if(ui->noSmoothRadioButton->isChecked()){
+        for(int i = 0; i < xProfile.count(); i++){
+            if(xProfile.at(i) > xMax){
+                xMax = xProfile.at(i);
+                xMaxId = i;
+            }
         }
-    }
-    for(int i = 0; i < ySmoothSmoothProfile.count(); i++){
-        if(ySmoothSmoothProfile.at(i) > yMax){
-            yMax = ySmoothSmoothProfile.at(i);
-            yMaxId = i;
+        for(int i = 0; i < yProfile.count(); i++){
+            if(yProfile.at(i) > yMax){
+                yMax = yProfile.at(i);
+                yMaxId = i;
+            }
+        }
+    } else if(ui->smoothRadioButton->isChecked()){
+        for(int i = 0; i < xSmoothProfile.count(); i++){
+            if(xSmoothProfile.at(i) > xMax){
+                xMax = xSmoothProfile.at(i);
+                xMaxId = i;
+            }
+        }
+        for(int i = 0; i < ySmoothProfile.count(); i++){
+            if(ySmoothProfile.at(i) > yMax){
+                yMax = ySmoothProfile.at(i);
+                yMaxId = i;
+            }
+        }
+    }else if(ui->smoothSmoothRadioButton->isChecked()){
+        for(int i = 0; i < xSmoothSmoothProfile.count(); i++){
+            if(xSmoothSmoothProfile.at(i) > xMax){
+                xMax = xSmoothSmoothProfile.at(i);
+                xMaxId = i;
+            }
+        }
+        for(int i = 0; i < ySmoothSmoothProfile.count(); i++){
+            if(ySmoothSmoothProfile.at(i) > yMax){
+                yMax = ySmoothSmoothProfile.at(i);
+                yMaxId = i;
+            }
         }
     }
     //--------------------------------------------
@@ -336,6 +378,8 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
             break;
         }
     }
+    double width = -1;
+    double height = -1;
     if(xWidthKeys.count() == 2 && yHeightKeys.count() == 2){
         if(xWidthKeys.at(0) < xWidthKeys.at(1) && yHeightKeys.at(0) < yHeightKeys.at(1)){
             widthLine->start->setCoords(xLengthKeys.at(xWidthKeys[0]),yLengthKeys.at(yMaxId));
@@ -344,8 +388,10 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
             heightLine->start->setCoords(xLengthKeys.at(xMaxId),yLengthKeys.at(yHeightKeys[0]));
             heightLine->end->setCoords(xLengthKeys.at(xMaxId),yLengthKeys.at(yHeightKeys[1]));
 
-            ui->widthLabel->setText(QString::number(qRound(xLengthKeys.at(xWidthKeys[1])-xLengthKeys.at(xWidthKeys[0]))));
-            ui->heightLabel->setText(QString::number(qRound(yLengthKeys.at(yHeightKeys[1])-yLengthKeys.at(yHeightKeys[0]))));
+            width = xLengthKeys.at(xWidthKeys[1])-xLengthKeys.at(xWidthKeys[0]);
+            height = yLengthKeys.at(yHeightKeys[1])-yLengthKeys.at(yHeightKeys[0]);
+            ui->widthLabel->setText(QString::number(qRound(width)));
+            ui->heightLabel->setText(QString::number(qRound(height)));
         }
     }else{
         widthLine->start->setCoords(xLengthKeys.at(0),yLengthKeys.at(0));
@@ -385,7 +431,7 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
 
     for(int y = 0; y < ySmoothProfile.count(); y++){
         for(int x = 0; x < xSmoothProfile.count(); x++){
-            double value;
+            double value = 0;
             if(ui->noSmoothRadioButton->isChecked()){
                 value = xProfile[x]*yProfile[y];
             }
@@ -406,6 +452,30 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     ui->plot->yAxis2->setRange(QCPRange(0,4));
 
     ui->plot->replot();
+
+    QTime currentTime = QTime::currentTime();
+    int diff = lastUpdate.msecsTo(currentTime);
+    if(diff > 1000){
+        DataBaseElement element;
+        element.time = QDateTime::currentDateTime();
+        element.x = xLengthKeys.at(xMaxId);
+        element.y = yLengthKeys.at(yMaxId);
+        element.width = width;
+        element.height = height;
+
+        if(ui->noSmoothRadioButton->isChecked()){
+            element.soothingType = 0;
+        }
+        if(ui->smoothRadioButton->isChecked()){
+            element.soothingType = 1;
+        }
+        if(ui->smoothSmoothRadioButton->isChecked()){
+            element.soothingType = 2;
+        }
+
+        dataBaseManager->addData(element);
+        lastUpdate = currentTime;
+    }
 }
 
 void MainWindow::handleOpenResult(Qt::Orientation type, bool status)
@@ -504,6 +574,7 @@ void MainWindow::on_startStopButton_clicked()
             ui->yCameraCalibrationButton->setEnabled(false);
 
             frameGrapTimer->start();
+            lastUpdate = QTime::currentTime();
         }else{
             QMessageBox::information(this,"Ошибка","Камеры не подключены");
         }
@@ -595,4 +666,15 @@ void MainWindow::on_yCameraConnectButton_clicked()
     setEnabledYCamer(false);
     ui->yIndicator->setState(false);
     emit openYCapture();
+}
+
+void MainWindow::on_hideShowButton_clicked()
+{
+    if(ui->groupBox->isVisible()){
+        ui->groupBox->setVisible(false);
+        ui->hideShowButton->setText("~");
+    }else{
+        ui->groupBox->setVisible(true);
+        ui->hideShowButton->setText("^");
+    }
 }

@@ -6,7 +6,7 @@
 
 QT       += core gui
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport sql
 
 TARGET = OpticalDiagnostics
 TEMPLATE = app
@@ -31,7 +31,9 @@ SOURCES += main.cpp\
     calibrationform.cpp \
     clickablelabel.cpp \
     indicator.cpp \
-    capturemanager.cpp
+    capturemanager.cpp \
+    databasemanager.cpp \
+    databaseelement.cpp
 
 HEADERS  += mainwindow.h \
     plot/qcustomplot.h \
@@ -40,7 +42,9 @@ HEADERS  += mainwindow.h \
     calibrationform.h \
     clickablelabel.h \
     indicator.h \
-    capturemanager.h
+    capturemanager.h \
+    databasemanager.h \
+    databaseelement.h
 
 FORMS    += mainwindow.ui \
     showpicform.ui \

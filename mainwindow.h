@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QSettings>
 #include <QTimer>
+#include <QTime>
 #include <waveletspectrum.h>
 #include <QMessageBox>
 #include <QThread>
@@ -13,6 +14,7 @@
 #include "calibrationform.h"
 #include "capturemanager.h"
 #include "tracermanager.h"
+#include "databasemanager.h"
 #include <cv.hpp>
 
 using namespace cv;
@@ -44,12 +46,17 @@ public:
     QString yStopPositionSettingsName = "yStopPosition";
 
 
+
     QString xCameraIpSettingsName = "xCameraIp";
     QString yCameraIpSettingsName = "yCameraIp";
     QString xUserNameSettingsName = "xUserName";
     QString yUserNameSettingsName = "yUserName";
+
+    QString dataBaseFlushSecSettingsName = "dataBaseFlushSec";
+
     void loadSettings();
     void saveSettings();
+    int dataBaseFlushSec = 60;
     double xScale = 1;
     double xDelta = 0;
     int yPositionForXAxis = 0;
@@ -61,6 +68,9 @@ public:
     int xPositionForYAxis = 0;
     int yStartPosition = 0;
     int yStopPosition = 0;
+
+    QTime lastUpdate;
+
     //===========================================================
     void showPic(Mat &pic);
     void calibrate(Qt::Orientation type, Mat &pic);
@@ -92,6 +102,9 @@ public:
     QCPItemTracer *centerTracer;
 
     TracerManager *manager;
+
+    DataBaseManager *dataBaseManager;
+    QThread *dataBaseThread;
     //===========================================================
     void setEnabledXCamer(bool value);
     void setEnabledYCamer(bool value);
@@ -119,6 +132,9 @@ private slots:
     void on_xCameraConnectButton_clicked();
 
     void on_yCameraConnectButton_clicked();
+
+
+    void on_hideShowButton_clicked();
 
 private:
     Ui::MainWindow *ui;
