@@ -54,8 +54,11 @@ public:
 
     QString dataBaseFlushSecSettingsName = "dataBaseFlushSec";
 
+    QString frameRateMsSettingsName = "framerateMs";
+
     void loadSettings();
     void saveSettings();
+    int frameRateMs = 30;
     int dataBaseFlushSec = 60;
     double xScale = 1;
     double xDelta = 0;
@@ -105,6 +108,9 @@ public:
 
     DataBaseManager *dataBaseManager;
     QThread *dataBaseThread;
+
+    QPen selectedPen;
+    QPen notSelectedPen;
     //===========================================================
     void setEnabledXCamer(bool value);
     void setEnabledYCamer(bool value);
@@ -135,6 +141,13 @@ private slots:
 
 
     void on_hideShowButton_clicked();
+
+
+    void on_noSmoothRadioButton_clicked(bool checked);
+
+    void on_smoothRadioButton_clicked(bool checked);
+
+    void on_smoothSmoothRadioButton_clicked(bool checked);
 
 private:
     Ui::MainWindow *ui;

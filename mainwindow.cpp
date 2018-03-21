@@ -24,7 +24,7 @@ MainWindow::MainWindow(QWidget *parent) :
     yThread->start();
 
     frameGrapTimer = new QTimer(this);
-    frameGrapTimer->setInterval(30);
+    frameGrapTimer->setInterval(frameRateMs);
     connect(frameGrapTimer,SIGNAL(timeout()),xCapure,SLOT(getFrame()),Qt::QueuedConnection);
     connect(frameGrapTimer,SIGNAL(timeout()),yCapure,SLOT(getFrame()),Qt::QueuedConnection);
 
@@ -49,6 +49,10 @@ MainWindow::MainWindow(QWidget *parent) :
     dataBaseThread->start();
 
     ui->dataBaseIndicator->setState(dataBaseManager->status);
+    /*
+    if(!dataBaseManager->dataBase.isOpen()){
+        QMessageBox::critical(this,"Err","No db");
+    }*/
 
     connect(dataBaseManager,SIGNAL(flushStatus(bool)),ui->dataBaseIndicator,SLOT(setState(bool)),Qt::QueuedConnection);
 }
@@ -66,6 +70,14 @@ MainWindow::~MainWindow()
 
     dataBaseThread->terminate();
 
+    if(!dataBaseManager->awaitingData.isEmpty()){
+        dataBaseManager->flushData();
+        if(!dataBaseManager->status){
+            QMessageBox::information(this,"Ошибка","Не удалось подключиться к базе данных.\nДанные будут потеряны.");
+        }
+    }
+
+    dataBaseManager->dataBase.close();
     dataBaseManager->deleteLater();
 
     delete ui;
@@ -85,6 +97,12 @@ void MainWindow::loadSettings()
         yStopPosition = settings.value(yStopPositionSettingsName).toInt();
         xDelta = settings.value(xDeltaSettingsName).toDouble();
         yDelta = settings.value(yDeltaSettingsName).toDouble();
+        frameRateMs = settings.value(frameRateMsSettingsName).toInt();
+
+        if(frameRateMs <= 0 && frameRateMs >= 1100){
+            frameRateMs = 30;
+        }
+        ui->frameRateLabel->setText(QString::number(frameRateMs));
 
         xProfile.resize(abs(xStopPosition-xStartPosition));
         yProfile.resize(abs(yStopPosition-yStartPosition));
@@ -127,6 +145,7 @@ void MainWindow::saveSettings()
     settings.setValue(xUserNameSettingsName,ui->xCameraUsernameEdit->text());
     settings.setValue(yUserNameSettingsName,ui->yCameraUsernameEdit->text());
     settings.setValue(dataBaseFlushSecSettingsName,dataBaseFlushSec);
+    settings.setValue(frameRateMsSettingsName,frameRateMs);
 }
 
 void MainWindow::showPic(Mat &pic)
@@ -146,6 +165,17 @@ void MainWindow::calibrate(Qt::Orientation type, Mat &pic)
 
 void MainWindow::initPlot()
 {
+    QSizePolicy qsp(QSizePolicy::Expanding,QSizePolicy::Expanding);
+    qsp.setHeightForWidth(true);
+    ui->plot->setSizePolicy(qsp);
+
+    notSelectedPen = QPen(QColor(0,0,255,128));
+    notSelectedPen.setWidth(1);
+
+
+    selectedPen = QPen(QColor(0,0,255));
+    selectedPen.setWidth(2);
+
 
     ui->plot->setInteraction(QCP::iRangeDrag, true);
     ui->plot->setInteraction(QCP::iRangeZoom, true);
@@ -169,28 +199,27 @@ void MainWindow::initPlot()
 
     xProfileGraph->setLayer("mid");
     yProfileGraph->setLayer("mid");
-    xProfileGraph->setPen(QPen(QColor(0,0,255,128)));
-    yProfileGraph->setPen(QPen(QColor(0,0,255,128)));
+    xProfileGraph->setPen(notSelectedPen);
+    yProfileGraph->setPen(notSelectedPen);
 
     xSmoothProfileGraph = ui->plot->addGraph(ui->plot->xAxis,ui->plot->yAxis2);
     ySmoothProfileGraph = ui->plot->addGraph(ui->plot->yAxis,ui->plot->xAxis2);
     xSmoothProfileGraph->setLayer("mid");
     ySmoothProfileGraph->setLayer("mid");
 
-    QPen pp(QColor(0,0,255,128));
-    pp.setWidth(1);
-    xSmoothProfileGraph->setPen(pp);
-    ySmoothProfileGraph->setPen(pp);
+
+
+
+    xSmoothProfileGraph->setPen(selectedPen);
+    ySmoothProfileGraph->setPen(selectedPen);
 
     xSmoothSmoothProfileGraph = ui->plot->addGraph(ui->plot->xAxis,ui->plot->yAxis2);
     ySmoothSmoothProfileGraph = ui->plot->addGraph(ui->plot->yAxis,ui->plot->xAxis2);
     xSmoothSmoothProfileGraph->setLayer("mid");
     ySmoothSmoothProfileGraph->setLayer("mid");
 
-    QPen ppp(QColor(0,0,255));
-    ppp.setWidth(2);
-    xSmoothSmoothProfileGraph->setPen(ppp);
-    ySmoothSmoothProfileGraph->setPen(ppp);
+    xSmoothSmoothProfileGraph->setPen(notSelectedPen);
+    ySmoothSmoothProfileGraph->setPen(notSelectedPen);
 
     xyProfileMap = new QCPColorMap(ui->plot->xAxis,ui->plot->yAxis);
     xyProfileMap->setLayer("low");
@@ -216,7 +245,7 @@ void MainWindow::initPlot()
     g.setColorStopAt(1,QColor(0,0,255));
     //g.setLevelCount(50);
     colorScale->setGradient(g);
-    colorScale->setDataRange(QCPRange(0,1));
+    colorScale->setDataRange(QCPRange(0,0.25));
     ui->plot->plotLayout()->addElement(0,1,colorScale);
     xyProfileMap->setColorScale(colorScale);
 
@@ -266,8 +295,10 @@ void MainWindow::setEnabledYCamer(bool value)
 
 void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProfile)
 {
-    ui->xIndicator->blink();
-    ui->yIndicator->blink();
+    if(ui->groupBox->isVisible()){
+        ui->xIndicator->blink();
+        ui->yIndicator->blink();
+    }
 
     if(xScale < 0){
         for(int i = 0; i < xProfile.count()/2; i++){
@@ -617,6 +648,7 @@ void MainWindow::handleFrame(Qt::Orientation type, Mat newPic)
         yimage = newPic;
     }
     if(xReady && yReady){
+        //imshow("test",ximage);
         xReady = false;
         yReady = false;
 
@@ -676,5 +708,44 @@ void MainWindow::on_hideShowButton_clicked()
     }else{
         ui->groupBox->setVisible(true);
         ui->hideShowButton->setText("^");
+    }
+}
+
+void MainWindow::on_noSmoothRadioButton_clicked(bool checked)
+{
+    if(checked){
+        xProfileGraph->setPen(selectedPen);
+        xSmoothProfileGraph->setPen(notSelectedPen);
+        xSmoothSmoothProfileGraph->setPen(notSelectedPen);
+
+        yProfileGraph->setPen(selectedPen);
+        ySmoothProfileGraph->setPen(notSelectedPen);
+        ySmoothSmoothProfileGraph->setPen(notSelectedPen);
+    }
+}
+
+void MainWindow::on_smoothRadioButton_clicked(bool checked)
+{
+    if(checked){
+        xProfileGraph->setPen(notSelectedPen);
+        xSmoothProfileGraph->setPen(selectedPen);
+        xSmoothSmoothProfileGraph->setPen(notSelectedPen);
+
+        yProfileGraph->setPen(notSelectedPen);
+        ySmoothProfileGraph->setPen(selectedPen);
+        ySmoothSmoothProfileGraph->setPen(notSelectedPen);
+    }
+}
+
+void MainWindow::on_smoothSmoothRadioButton_clicked(bool checked)
+{
+    if(checked){
+        xProfileGraph->setPen(notSelectedPen);
+        xSmoothProfileGraph->setPen(notSelectedPen);
+        xSmoothSmoothProfileGraph->setPen(selectedPen);
+
+        yProfileGraph->setPen(notSelectedPen);
+        ySmoothProfileGraph->setPen(notSelectedPen);
+        ySmoothSmoothProfileGraph->setPen(selectedPen);
     }
 }

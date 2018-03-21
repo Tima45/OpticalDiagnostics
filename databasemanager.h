@@ -19,10 +19,12 @@ public:
     ~DataBaseManager();
     void setFlushSec(int sec);
     bool status = false;
-private:
     QSqlDatabase dataBase;
+    QList<DataBaseElement> awaitingData;
+private:
+
     int flushSec = 10;
-    QVector<DataBaseElement> awaitingData;
+
     QTimer *timer;
 
     QReadWriteLock lock;
