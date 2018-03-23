@@ -9,9 +9,9 @@ MainWindow::MainWindow(QWidget *parent) :
     loadSettings();
     initPlot();
 
-    xCapure = new CaptureManager(30);
+    xCapure = new CaptureManager(frameRateMs);
     xCapure->type = Qt::Horizontal;
-    yCapure = new CaptureManager(30);
+    yCapure = new CaptureManager(frameRateMs);
     yCapure->type = Qt::Vertical;
 
     xThread = new QThread(this);
@@ -42,7 +42,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(yCapure,SIGNAL(newFrame(Qt::Orientation,Mat)),this,SLOT(handleFrame(Qt::Orientation,Mat)),Qt::QueuedConnection);
     connect(yCapure,SIGNAL(losedConnection(Qt::Orientation)),this,SLOT(handleLostConnection(Qt::Orientation)),Qt::QueuedConnection);
 
-    dataBaseManager = new DataBaseManager(dataBaseFlushSec);
+    dataBaseManager = new DataBaseManager(dataBaseIp,dataBaseFlushSec);
     dataBaseThread = new QThread(this);
     dataBaseManager->moveToThread(dataBaseThread);
 
@@ -52,9 +52,15 @@ MainWindow::MainWindow(QWidget *parent) :
     /*
     if(!dataBaseManager->dataBase.isOpen()){
         QMessageBox::critical(this,"Err","No db");
-    }*/
+    }
+*/
 
     connect(dataBaseManager,SIGNAL(flushStatus(bool)),ui->dataBaseIndicator,SLOT(setState(bool)),Qt::QueuedConnection);
+
+
+    ui->groupBox_6->setVisible(false);
+    ui->groupBox_7->setVisible(false);
+    ui->hideExtraInformationButton->setText(">");
 }
 
 MainWindow::~MainWindow()
@@ -121,6 +127,8 @@ void MainWindow::loadSettings()
 
         dataBaseFlushSec = settings.value(dataBaseFlushSecSettingsName).toInt();
 
+        dataBaseIp = settings.value(dataBaseIpSettingsName).toString();
+
     }else{
         //QMessageBox::warning(this,"Внимание","Файл настрок не найден. Значения дефолтные.");
         saveSettings();
@@ -146,6 +154,7 @@ void MainWindow::saveSettings()
     settings.setValue(yUserNameSettingsName,ui->yCameraUsernameEdit->text());
     settings.setValue(dataBaseFlushSecSettingsName,dataBaseFlushSec);
     settings.setValue(frameRateMsSettingsName,frameRateMs);
+    settings.setValue(dataBaseIpSettingsName,dataBaseIp);
 }
 
 void MainWindow::showPic(Mat &pic)
@@ -460,6 +469,8 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     //--------------------------------------------
 
 
+
+
     for(int y = 0; y < ySmoothProfile.count(); y++){
         for(int x = 0; x < xSmoothProfile.count(); x++){
             double value = 0;
@@ -564,6 +575,7 @@ void MainWindow::saveCalibration(Qt::Orientation type, double scale, double delt
         ui->plot->xAxis->setRange(QCPRange(xDelta,(xStopPosition-xStartPosition)*xScale+xDelta));
         ui->plot->replot();
         saveSettings();
+
     }
     if(type == Qt::Vertical){
         yScale = scale;
@@ -580,6 +592,9 @@ void MainWindow::saveCalibration(Qt::Orientation type, double scale, double delt
         ui->plot->replot();
         saveSettings();
     }
+
+    xyProfileMap->data()->setSize(abs(xStopPosition-xStartPosition),abs(yStopPosition-yStartPosition));
+    xyProfileMap->data()->setRange(QCPRange(xDelta,xProfile.count()*fabs(xScale)+xDelta),QCPRange(yDelta,yProfile.count()*fabs(yScale)+yDelta));
 }
 
 void MainWindow::on_startStopButton_clicked()
@@ -679,6 +694,7 @@ void MainWindow::handleFrame(Qt::Orientation type, Mat newPic)
             yProfile[y-start] = (double)b/255.0;
         }
         updateProfiles(xProfile,yProfile);
+        ui->readyDataLabel->setText(QString::number(dataBaseManager->awaitingData.count()));
         yimage.release();
         ximage.release();
     }
@@ -747,5 +763,18 @@ void MainWindow::on_smoothSmoothRadioButton_clicked(bool checked)
         yProfileGraph->setPen(notSelectedPen);
         ySmoothProfileGraph->setPen(notSelectedPen);
         ySmoothSmoothProfileGraph->setPen(selectedPen);
+    }
+}
+
+void MainWindow::on_hideExtraInformationButton_clicked()
+{
+    if(ui->groupBox_6->isVisible()){
+        ui->groupBox_6->setVisible(false);
+        ui->groupBox_7->setVisible(false);
+        ui->hideExtraInformationButton->setText(">");
+    }else{
+        ui->groupBox_6->setVisible(true);
+        ui->groupBox_7->setVisible(true);
+        ui->hideExtraInformationButton->setText("<");
     }
 }

@@ -15,7 +15,7 @@ class DataBaseManager : public QObject
 {
     Q_OBJECT
 public:
-    explicit DataBaseManager(int flushSec,QObject *parent = 0);
+    explicit DataBaseManager(QString dataBaseIp, int flushSec, QObject *parent = 0);
     ~DataBaseManager();
     void setFlushSec(int sec);
     bool status = false;

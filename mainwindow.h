@@ -32,7 +32,7 @@ public:
     bool isRunning = false;
     QTimer *frameGrapTimer;
     //===========================================================
-    QString settingsName = "calibration.ini";
+    QString settingsName = "settings.ini";
     QString xScaleSettingsName = "xScale";
     QString xDeltaSettingsName = "xDelta";
     QString yPositionForXAxisSettingsName = "yPositionForXAxis";
@@ -56,8 +56,12 @@ public:
 
     QString frameRateMsSettingsName = "framerateMs";
 
+    QString dataBaseIpSettingsName = "dataBaseIp";
+
     void loadSettings();
     void saveSettings();
+
+    QString dataBaseIp = "192.168.0.220";
     int frameRateMs = 30;
     int dataBaseFlushSec = 60;
     double xScale = 1;
@@ -148,6 +152,8 @@ private slots:
     void on_smoothRadioButton_clicked(bool checked);
 
     void on_smoothSmoothRadioButton_clicked(bool checked);
+
+    void on_hideExtraInformationButton_clicked();
 
 private:
     Ui::MainWindow *ui;

@@ -1,6 +1,6 @@
 #include "databasemanager.h"
 
-DataBaseManager::DataBaseManager(int flushSec, QObject *parent) : QObject(parent) , flushSec(flushSec)
+DataBaseManager::DataBaseManager(QString dataBaseIp,int flushSec, QObject *parent) : QObject(parent) , flushSec(flushSec)
 {
     awaitingData.reserve(1800);
 
@@ -13,7 +13,7 @@ DataBaseManager::DataBaseManager(int flushSec, QObject *parent) : QObject(parent
     dataBase.setDatabaseName("name");
     dataBase.setUserName("OpticalDiagnostics");
     dataBase.setPassword("optdiag");
-    dataBase.setHostName("192.168.0.220");
+    dataBase.setHostName(dataBaseIp);
     dataBase.setPort(5432);
 
     if(dataBase.open()){
