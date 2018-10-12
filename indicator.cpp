@@ -6,6 +6,8 @@ Indicator::Indicator(QWidget *parent, Qt::WindowFlags f) : QLabel(parent)
     onPix = QPixmap(":/picures/indicatorOn.png");
     onPix2 = QPixmap(":/picures/indicatorOn2.png");
     offPix = QPixmap(":/picures/indicatorOff.png");
+    loadingMov = new QMovie(":/picures/indicatorLoading.gif");
+    loadingMov->start();
     this->setPixmap(offPix);
     this->setToolTip("Отключено");
     this->setScaledContents(true);
@@ -14,6 +16,7 @@ Indicator::Indicator(QWidget *parent, Qt::WindowFlags f) : QLabel(parent)
 bool Indicator::isTernedOn()
 {
     return value;
+    delete loadingMov;
 }
 
 void Indicator::setState(bool value)
@@ -37,4 +40,10 @@ void Indicator::blink()
             this->setPixmap(onPix2);
         }
     }
+}
+
+void Indicator::setLoading()
+{
+    this->clear();
+    this->setMovie(loadingMov);
 }

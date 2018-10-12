@@ -31,9 +31,9 @@ SOURCES += main.cpp\
     calibrationform.cpp \
     clickablelabel.cpp \
     indicator.cpp \
-    capturemanager.cpp \
     databasemanager.cpp \
-    databaseelement.cpp
+    databaseelement.cpp \
+    cvcameramanager.cpp
 
 HEADERS  += mainwindow.h \
     plot/qcustomplot.h \
@@ -42,9 +42,9 @@ HEADERS  += mainwindow.h \
     calibrationform.h \
     clickablelabel.h \
     indicator.h \
-    capturemanager.h \
     databasemanager.h \
-    databaseelement.h
+    databaseelement.h \
+    cvcameramanager.h
 
 FORMS    += mainwindow.ui \
     showpicform.ui \
@@ -86,4 +86,6 @@ RESOURCES += \
 
 DISTFILES += \
     indicatorOff.png \
-    indicatorOn.png
+    indicatorOn.png \
+    indicatorLoading.gif \
+    indicatorOn2.png

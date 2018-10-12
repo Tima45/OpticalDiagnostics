@@ -12,7 +12,7 @@
 #include "plot/qcustomplot.h"
 #include "showpicform.h"
 #include "calibrationform.h"
-#include "capturemanager.h"
+#include "cvcameramanager.h"
 #include "tracermanager.h"
 #include "databasemanager.h"
 #include <cv.hpp>
@@ -30,7 +30,7 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
     bool isRunning = false;
-    QTimer *frameGrapTimer;
+    //QTimer *frameGrapTimer;
     //===========================================================
     QString settingsName = "settings.ini";
     QString xScaleSettingsName = "xScale";
@@ -82,11 +82,17 @@ public:
     void showPic(Mat &pic);
     void calibrate(Qt::Orientation type, Mat &pic);
 
+    CVCameraManager *xCamera;
+    CVCameraManager *yCamera;
+
+    /*
     CaptureManager *xCapure;
     CaptureManager *yCapure;
 
     QThread *xThread;
     QThread *yThread;
+    */
+
 
     Mat ximage;
     Mat yimage;
@@ -124,12 +130,10 @@ public:
     bool xReady = false;
     bool yReady = false;
 
-signals:
-    void openXCapture();
-    void openYCapture();
 private slots:
-    void handleLostConnection(Qt::Orientation type);
-    void handleOpenResult(Qt::Orientation type, bool status);
+    void checkXConnection();
+    void checkYConnection();
+
     void saveCalibration(Qt::Orientation type,double scale, double delta,int start, int stop, int otherPixel);
     void on_startStopButton_clicked();
 
@@ -137,7 +141,9 @@ private slots:
 
     void on_yCameraCalibrationButton_clicked();
 
-    void handleFrame(Qt::Orientation type, Mat newPic);
+    void handleXFrame(Mat newPic);
+    void handleYFrame(Mat newPic);
+    void handleBothFrames();
 
     void on_xCameraConnectButton_clicked();
 

@@ -9,38 +9,20 @@ MainWindow::MainWindow(QWidget *parent) :
     loadSettings();
     initPlot();
 
-    xCapure = new CaptureManager(frameRateMs);
-    xCapure->type = Qt::Horizontal;
-    yCapure = new CaptureManager(frameRateMs);
-    yCapure->type = Qt::Vertical;
+    xCamera = new CVCameraManager(this);
+    yCamera = new CVCameraManager(this);
 
-    xThread = new QThread(this);
-    yThread = new QThread(this);
-
-    xCapure->moveToThread(xThread);
-    xThread->start();
-
-    yCapure->moveToThread(yThread);
-    yThread->start();
-
-    frameGrapTimer = new QTimer(this);
-    frameGrapTimer->setInterval(frameRateMs);
-    connect(frameGrapTimer,SIGNAL(timeout()),xCapure,SLOT(getFrame()),Qt::QueuedConnection);
-    connect(frameGrapTimer,SIGNAL(timeout()),yCapure,SLOT(getFrame()),Qt::QueuedConnection);
 
     qRegisterMetaType<Mat>("Mat");
-    qRegisterMetaType<Qt::Orientation>("Qt::Orientation");
+
+    connect(xCamera,SIGNAL(connected()),this,SLOT(checkXConnection()));
+    connect(yCamera,SIGNAL(connected()),this,SLOT(checkYConnection()));
+    connect(xCamera,SIGNAL(disconnected()),this,SLOT(checkXConnection()));
+    connect(yCamera,SIGNAL(disconnected()),this,SLOT(checkYConnection()));
 
 
-    connect(this,SIGNAL(openXCapture()),xCapure,SLOT(open()));
-    connect(this,SIGNAL(openYCapture()),yCapure,SLOT(open()));
-    connect(xCapure,SIGNAL(openResult(Qt::Orientation,bool)),this,SLOT(handleOpenResult(Qt::Orientation,bool)));
-    connect(yCapure,SIGNAL(openResult(Qt::Orientation,bool)),this,SLOT(handleOpenResult(Qt::Orientation,bool)));
-
-    connect(xCapure,SIGNAL(newFrame(Qt::Orientation,Mat)),this,SLOT(handleFrame(Qt::Orientation,Mat)),Qt::QueuedConnection);
-    connect(xCapure,SIGNAL(losedConnection(Qt::Orientation)),this,SLOT(handleLostConnection(Qt::Orientation)),Qt::QueuedConnection);
-    connect(yCapure,SIGNAL(newFrame(Qt::Orientation,Mat)),this,SLOT(handleFrame(Qt::Orientation,Mat)),Qt::QueuedConnection);
-    connect(yCapure,SIGNAL(losedConnection(Qt::Orientation)),this,SLOT(handleLostConnection(Qt::Orientation)),Qt::QueuedConnection);
+    connect(xCamera,SIGNAL(newFrame(Mat)),this,SLOT(handleXFrame(Mat)));
+    connect(yCamera,SIGNAL(newFrame(Mat)),this,SLOT(handleYFrame(Mat)));
 
     dataBaseManager = new DataBaseManager(dataBaseIp,dataBaseFlushSec);
     dataBaseThread = new QThread(this);
@@ -49,11 +31,6 @@ MainWindow::MainWindow(QWidget *parent) :
     dataBaseThread->start();
 
     ui->dataBaseIndicator->setState(dataBaseManager->status);
-    /*
-    if(!dataBaseManager->dataBase.isOpen()){
-        QMessageBox::critical(this,"Err","No db");
-    }
-*/
 
     connect(dataBaseManager,SIGNAL(flushStatus(bool)),ui->dataBaseIndicator,SLOT(setState(bool)),Qt::QueuedConnection);
 
@@ -66,13 +43,6 @@ MainWindow::MainWindow(QWidget *parent) :
 MainWindow::~MainWindow()
 {
     saveSettings();
-
-    xThread->terminate();
-    yThread->terminate();
-
-    xCapure->deleteLater();
-    yCapure->deleteLater();
-
 
     dataBaseThread->terminate();
 
@@ -289,6 +259,7 @@ void MainWindow::setEnabledXCamer(bool value)
     ui->xCameraPassword->setEnabled(value);
     ui->xCameraConnectButton->setEnabled(value);
     ui->xCameraCalibrationButton->setEnabled(!value);
+    ui->xCameraTypeBox->setEnabled(value);
     ui->xIndicator->setState(!value);
 }
 
@@ -299,6 +270,7 @@ void MainWindow::setEnabledYCamer(bool value)
     ui->yCameraPassword->setEnabled(value);
     ui->yCameraConnectButton->setEnabled(value);
     ui->yCameraCalibrationButton->setEnabled(!value);
+    ui->yCameraTypeBox->setEnabled(value);
     ui->yIndicator->setState(!value);
 }
 
@@ -520,44 +492,28 @@ void MainWindow::updateProfiles(QVector<double> &xProfile,QVector<double> &yProf
     }
 }
 
-void MainWindow::handleOpenResult(Qt::Orientation type, bool status)
+void MainWindow::checkXConnection()
 {
-    if(type == Qt::Horizontal){
-        if(status){
-            setEnabledXCamer(false);
-        }else{
-            setEnabledXCamer(true);
-            QMessageBox::critical(this,"Ошибка","Не удалось подключиться.");
-        }
-    }
-    if(type == Qt::Vertical){
-        if(status){
-            setEnabledYCamer(false);
-        }else{
-            setEnabledYCamer(true);
-            QMessageBox::critical(this,"Ошибка","Не удалось подключиться.");
-        }
-    }
-}
-
-void MainWindow::handleLostConnection(Qt::Orientation type)
-{
-    if(isRunning){
+    if(xCamera->isOpend()){
+        setEnabledXCamer(false);
+    }else{
         isRunning = false;
         ui->startStopButton->setText("Старт");
-        frameGrapTimer->stop();
-    }
-
-    if(type == Qt::Horizontal){
         setEnabledXCamer(true);
-        //QMessageBox::critical(this,"Ошибка","Связь с камерой X потеряна.");
     }
-    if(type == Qt::Vertical){
-        setEnabledYCamer(true);
-        //QMessageBox::critical(this,"Ошибка","Связь с камерой Y потеряна.");
-    }
-
 }
+
+void MainWindow::checkYConnection()
+{
+    if(yCamera->isOpend()){
+        setEnabledYCamer(false);
+    }else{
+        isRunning = false;
+        ui->startStopButton->setText("Старт");
+        setEnabledYCamer(true);
+    }
+}
+
 
 void MainWindow::saveCalibration(Qt::Orientation type, double scale, double delta, int start, int stop, int otherPixel)
 {
@@ -606,21 +562,24 @@ void MainWindow::on_startStopButton_clicked()
         ui->xCameraCalibrationButton->setEnabled(true);
         ui->yCameraCalibrationButton->setEnabled(true);
 
-        frameGrapTimer->stop();
+        xCamera->stopCapture();
+        yCamera->stopCapture();
     }else{
         if(xStartPosition == 0 || xStopPosition == 0 || yStartPosition == 0 || yStartPosition == 0 || xPositionForYAxis == 0 || yPositionForXAxis == 0){
             QMessageBox::critical(this,"Ошибка","Не выполнена калибровка.");
             return ;
         }
-        if(xCapure->isOpend() && yCapure->isOpend()){
+        if(xCamera->isOpend() && yCamera->isOpend()){
             isRunning = true;
             ui->startStopButton->setText("Стоп");
 
             ui->xCameraCalibrationButton->setEnabled(false);
             ui->yCameraCalibrationButton->setEnabled(false);
 
-            frameGrapTimer->start();
             lastUpdate = QTime::currentTime();
+
+            xCamera->startCapture();
+            yCamera->startCapture();
         }else{
             QMessageBox::information(this,"Ошибка","Камеры не подключены");
         }
@@ -630,38 +589,46 @@ void MainWindow::on_startStopButton_clicked()
 
 void MainWindow::on_xCameraCalibrationButton_clicked()
 {
-    if(xCapure->isOpend()){
-        Mat pic = xCapure->takeSingleFrame();
-        if(pic.data){
+    if(xCamera->isOpend()){
+        Mat pic = xCamera->takeSingleFrame();
+        if(!pic.empty()){
             calibrate(Qt::Horizontal,pic);
         }else{
-            QMessageBox::critical(this,":(",":(");
+            QMessageBox::critical(this,"Ошибка","Камера не подключена.");
         }
     }
 }
 
 void MainWindow::on_yCameraCalibrationButton_clicked()
 {
-    if(yCapure->isOpend()){
-        Mat pic = yCapure->takeSingleFrame();
-        if(pic.data){
+    if(yCamera->isOpend()){
+        Mat pic = yCamera->takeSingleFrame();
+        if(!pic.empty()){
             calibrate(Qt::Vertical,pic);
         }else{
-            QMessageBox::critical(this,":(",":(");
+            QMessageBox::critical(this,"Ошибка","Камера не подключена.");
         }
     }
 }
 
-void MainWindow::handleFrame(Qt::Orientation type, Mat newPic)
+
+void MainWindow::handleXFrame(Mat newPic)
 {
-    if(type == Qt::Horizontal){
-        xReady = true;
-        ximage = newPic;
-    }
-    if(type == Qt::Vertical){
-        yReady = true;
-        yimage = newPic;
-    }
+    xReady = true;
+    ximage = newPic;
+    ui->xIndicator->blink();
+    handleBothFrames();
+}
+
+void MainWindow::handleYFrame(Mat newPic)
+{
+    yReady = true;
+    yimage = newPic;
+    ui->yIndicator->blink();
+    handleBothFrames();
+}
+
+void MainWindow::handleBothFrames(){
     if(xReady && yReady){
         //imshow("test",ximage);
         xReady = false;
@@ -700,20 +667,31 @@ void MainWindow::handleFrame(Qt::Orientation type, Mat newPic)
     }
 }
 
+
 void MainWindow::on_xCameraConnectButton_clicked()
 {
-    xCapure->setConnectionString(QString("rtsp://%1:%2@%3:554/Streaming/Channels/103").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text()));
+    if(ui->xCameraTypeBox->currentIndex() == 0){
+        xCamera->setConnectionString(QString("rtsp://%1:%2@%3:554/Streaming/Channels/103").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text()));
+    }else if(ui->xCameraTypeBox->currentIndex() == 1) {
+        xCamera->setConnectionString(QString("rtsp://%1:%2@%3:554/live1.sdp").arg(ui->xCameraUsernameEdit->text()).arg(ui->xCameraPassword->text()).arg(ui->xCameraIpEdit->text()));
+    }
     setEnabledXCamer(false);
     ui->xIndicator->setState(false);
-    emit openXCapture();
+    ui->xIndicator->setLoading();
+    xCamera->connectToCamera();
 }
 
 void MainWindow::on_yCameraConnectButton_clicked()
 {
-    yCapure->setConnectionString(QString("rtsp://%1:%2@%3:554/Streaming/Channels/103").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text()));
+    if(ui->yCameraTypeBox->currentIndex() == 0){
+        yCamera->setConnectionString(QString("rtsp://%1:%2@%3:554/Streaming/Channels/103").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text()));
+    }else if(ui->yCameraTypeBox->currentIndex() == 1){
+        yCamera->setConnectionString(QString("rtsp://%1:%2@%3:554/live1.sdp").arg(ui->yCameraUsernameEdit->text()).arg(ui->yCameraPassword->text()).arg(ui->yCameraIpEdit->text()));
+    }
     setEnabledYCamer(false);
     ui->yIndicator->setState(false);
-    emit openYCapture();
+    ui->yIndicator->setLoading();
+    yCamera->connectToCamera();
 }
 
 void MainWindow::on_hideShowButton_clicked()

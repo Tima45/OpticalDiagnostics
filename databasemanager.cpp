@@ -10,8 +10,8 @@ DataBaseManager::DataBaseManager(QString dataBaseIp,int flushSec, QObject *paren
     timer->start();
 
     dataBase = QSqlDatabase::addDatabase("QPSQL");
-    dataBase.setDatabaseName("name");
-    dataBase.setUserName("OpticalDiagnostics");
+    dataBase.setDatabaseName("Experiments");
+    dataBase.setUserName("tima45");
     dataBase.setPassword("optdiag");
     dataBase.setHostName(dataBaseIp);
     dataBase.setPort(5432);
@@ -52,12 +52,11 @@ void DataBaseManager::flushData()
     emit flushStatus(true);
     lock.lockForWrite();
     if(!awaitingData.isEmpty()){
-        qDebug() << awaitingData.count();
         if(dataBase.isOpen()){
-            QString sqlQuery = "INSERT INTO \"OpticalDiagnostics\" (time,xMax,yMax,width,height,smoothType) VALUES ";
+            QString sqlQuery = "INSERT INTO public.\"OpticalDiagnostics\" (time,x_max,y_max,width,height,smooth_type) VALUES ";
             for(int i = 0; i < awaitingData.count(); i++){
                 sqlQuery += "(";
-                sqlQuery += ("'"+awaitingData.at(i).time.toString("yyyy-MM-dd hh:mm:ss")+" + 7.0',");
+                sqlQuery += ("'"+awaitingData.at(i).time.toString("yyyy-MM-dd hh:mm:ss")+"+07',");
                 sqlQuery += (QString::number(awaitingData.at(i).x)+",");
                 sqlQuery += (QString::number(awaitingData.at(i).y)+",");
 
@@ -76,18 +75,20 @@ void DataBaseManager::flushData()
                 sqlQuery += "),";
             }
             sqlQuery.chop(1);
+            sqlQuery += ";";
 
             qDebug() << (const char *)sqlQuery.toStdString().c_str();
 
-            QSqlQuery q(sqlQuery);
-            if(q.exec()){
+            QSqlQuery q;
+            if(q.exec(sqlQuery)){
                 awaitingData.clear();
                 status = true;
             }else{
+                qDebug() << q.lastError().text();
                 dataBase.close();
                 if(dataBase.open()){
                     qDebug() << "Connected.";
-                    if(q.exec()){
+                    if(q.exec(sqlQuery)){
                         awaitingData.clear();
                         status = true;
                     }else{
